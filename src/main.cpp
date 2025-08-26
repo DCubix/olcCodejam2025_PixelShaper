@@ -47,7 +47,7 @@ public:
         gui.Begin();
         
         BuildBottomStatusbar();
-        BuildLeftToolbar();
+        BuildTopToolbar();
         BuildRightSidebar();
         BuildDrawingArea();
 
@@ -61,12 +61,12 @@ public:
         return true;
     }
 
-    void BuildLeftToolbar()
+    void BuildTopToolbar()
     {
-        gui.CutLeft(20).Panel(PanelStyle::Flat, gui.AdjustValue(controlColor, 0.5f));
+        gui.CutTop(24).Panel(PanelStyle::Raised, controlColor, 2);
 
         // Circle
-        if (gui.CutTop(20).Button("add_ellipse", "$[2]", controlColor))
+        if (gui.CutLeft(20).Button("add_ellipse", "$[2]", controlColor))
         {
             activeLayer->AddElement(
                 new EllipseElement(olc::vi2d(mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2), olc::vi2d(40, 20), 0.0f, olc::WHITE)
@@ -75,7 +75,7 @@ public:
         }
 
         // Rectangle
-        if (gui.CutTop(20).Button("add_rectangle", "$[3]", controlColor))
+        if (gui.CutLeft(20).Button("add_rectangle", "$[3]", controlColor))
         {
             activeLayer->AddElement(
                 new RectangleElement(olc::vi2d(mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2), olc::vi2d(40, 20), 0.0f, olc::WHITE)
