@@ -3,9 +3,14 @@
 #include <cmath>
 #include "olcPixelGameEngine.h"
 
+#include <nfd.hpp>
+
 #include "gui.h"
 #include "shaper.h"
+
 #include <regex>
+#include <fstream>
+#include <filesystem>
 
 const olc::Pixel gizmoColor = olc::Pixel(80, 139, 237);
 const olc::Pixel gizmoColorGrey = olc::Pixel(128, 128, 128);
@@ -16,7 +21,7 @@ class ExampleApp : public olc::PixelGameEngine
 public:
     ExampleApp()
     {
-        sAppName = "olcPixelGameEngine - Cross Platform Example";
+        sAppName = "PixelShaper";
     }
 
 public:
@@ -34,6 +39,10 @@ public:
         gui.AddIcon("assets/up.png"); // 6
         gui.AddIcon("assets/down.png"); // 7
         gui.AddIcon("assets/add.png"); // 8
+        gui.AddIcon("assets/new.png"); // 9
+        gui.AddIcon("assets/open.png"); // 10
+        gui.AddIcon("assets/save.png"); // 11
+        gui.AddIcon("assets/enabled.png"); // 12
 
         RecreateDrawing();
 
@@ -63,10 +72,32 @@ public:
 
     void BuildTopToolbar()
     {
+        int w = 0;
         gui.CutTop(24).Panel(PanelStyle::Raised, controlColor, 2);
 
+        w = GetTextSizeProp("New").x + 25;
+        if (gui.CutLeft(w).Button("new", "$[9] New", controlColor))
+        {
+            RecreateDrawing();
+        }
+
+        w = GetTextSizeProp("Open").x + 25;
+        if (gui.CutLeft(w).Button("open", "$[10] Open", controlColor))
+        {
+            OpenDrawing();
+        }
+
+        w = GetTextSizeProp("Save").x + 25;
+        if (gui.CutLeft(w).Button("save", "$[11] Save", controlColor))
+        {
+            SaveDrawing();
+        }
+
+        gui.CutLeft(4).Spacer();
+
         // Circle
-        if (gui.CutLeft(20).Button("add_ellipse", "$[2]", controlColor))
+        w = GetTextSizeProp("Add Ellipse").x + 20;
+        if (gui.CutLeft(w).Button("add_ellipse", "$[2] Add Ellipse", controlColor))
         {
             activeLayer->AddElement(
                 new EllipseElement(olc::vi2d(mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2), olc::vi2d(40, 20), 0.0f, olc::WHITE)
@@ -75,7 +106,8 @@ public:
         }
 
         // Rectangle
-        if (gui.CutLeft(20).Button("add_rectangle", "$[3]", controlColor))
+        w = GetTextSizeProp("Add Rectangle").x + 20;
+        if (gui.CutLeft(w).Button("add_rectangle", "$[3] Add Rectangle", controlColor))
         {
             activeLayer->AddElement(
                 new RectangleElement(olc::vi2d(mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2), olc::vi2d(40, 20), 0.0f, olc::WHITE)
@@ -88,13 +120,16 @@ public:
 
     void LayersTab()
     {
+        auto layers = mDrawing->GetLayers();
+
         // Layer add
-        if (gui.CutTop(18).Button("add_layer", "$[8] Add Layer", controlColor)) {
-            activeLayer = mDrawing->AddLayer();
+        if (layers.size() < 10) { // limit to 10 layers
+            if (gui.CutTop(18).Button("add_layer", "$[8] Add Layer", controlColor)) {
+                activeLayer = mDrawing->AddLayer();
+            }
         }
 
         // Layers
-        auto layers = mDrawing->GetLayers();
         int i = 0;
         for (const auto& layer : layers)
         {
@@ -153,6 +188,29 @@ public:
 
             i++;
         }
+
+        gui.CutBottom(18);
+        if (gui.CutLeft(0.5f).Spinner("drawing_width", drawingWidth, 8, 512, 2, controlColor))
+        {
+            mDrawing->Resize(drawingWidth, drawingHeight);
+            mDrawing->RenderAll();
+        }
+        if (gui.CutRight(1.0f).Spinner("drawing_height", drawingHeight, 8, 512, 2, controlColor))
+        {
+            mDrawing->Resize(drawingWidth, drawingHeight);
+            mDrawing->RenderAll();
+        }
+        gui.Spacer();
+        gui.CutBottom(18).Text("Drawing Size", Alignment::Left, olc::BLACK);
+
+        gui.CutBottom(18);
+        int smoothness = static_cast<int>(activeLayer->GetMergeSmoothness() * 5.0f);
+        if (gui.HSlider("fx_merge_smoothness", smoothness, 0, 100, controlColor))
+        {
+            activeLayer->SetMergeSmoothness(smoothness / 5.0f);
+            mDrawing->RenderAll();
+        }
+        gui.CutBottom(18).Text("Merge Smoothness", Alignment::Left, olc::BLACK);
     }
 
     void PropertiesTab()
@@ -235,6 +293,8 @@ public:
 
     void FXTab()
     {
+        const std::vector<std::string> tabs = { "Contour", "Shading" };
+
         if (!activeLayer)
         {
             gui.CutTop(36);
@@ -242,77 +302,74 @@ public:
             return;
         }
 
-        gui.CutTop(18).Text("Merge Smoothness", Alignment::Left, olc::BLACK);
         gui.CutTop(18);
-
-        int smoothness = static_cast<int>(activeLayer->GetMergeSmoothness() * 5.0f);
-        if (gui.HSlider("fx_merge_smoothness", smoothness, 0, 100, controlColor))
         {
-            activeLayer->SetMergeSmoothness(smoothness / 5.0f);
-            mDrawing->RenderAll();
+            gui.TabBar(tabs, activeFXTab, controlColor);
         }
+        gui.Spacer();
 
-        gui.CutTop(3).Spacer();
-
-        gui.CutTop(18);
-        if (gui.CheckBox("fx_contour_enabled", "Contour", activeLayer->GetContourEffect()->mEnabled, olc::WHITE, olc::BLACK))
+        if (activeFXTab == 0) // Contour tab
         {
-            mDrawing->RenderAll();
-        }
-
-        if (activeLayer->GetContourEffect()->mEnabled)
-        {
-            gui.CutTop(18).Text("Contour Color", Alignment::Left, olc::BLACK);
-            gui.CutTop(100);
-            if (gui.ColorPicker("fx_contour_color", activeLayer->GetContourEffect()->mColor))
+            gui.CutTop(18);
+            if (gui.CheckBox("fx_contour_enabled", "Enabled", activeLayer->GetContourEffect()->mEnabled, olc::WHITE, olc::BLACK))
             {
                 mDrawing->RenderAll();
             }
-        }
 
-        gui.CutTop(3).Spacer();
-
-        gui.CutTop(18);
-        if (gui.CheckBox("fx_shading_enabled", "Shading", activeLayer->GetShadingEffect()->mEnabled, olc::WHITE, olc::BLACK))
-        {
-            mDrawing->RenderAll();
-        }
-
-        if (activeLayer->GetShadingEffect()->mEnabled)
-        {
-            gui.CutTop(18).Text("Light Position", Alignment::Left, olc::BLACK);
-            gui.CutTop(18);
-            if (gui.CutLeft(0.5f).Spinner("fx_light_x", activeLayer->GetShadingEffect()->mLightPosition.x, 0, mDrawing->GetWidth(), 1, controlColor))
-                mDrawing->RenderAll();
-            if (gui.CutRight(1.0f).Spinner("fx_light_y", activeLayer->GetShadingEffect()->mLightPosition.y, 0, mDrawing->GetHeight(), 1, controlColor))
-                mDrawing->RenderAll();
-            gui.Spacer();
-
-            gui.CutTop(3).Spacer();
-
-            gui.CutTop(18).Text("Intensity", Alignment::Left, olc::BLACK);
-            gui.CutTop(18);
-            int intensity = static_cast<int>(activeLayer->GetShadingEffect()->mIntensity * 10.0f);
-            if (gui.HSlider("fx_intensity", intensity, 0, 10, controlColor))
+            if (activeLayer->GetContourEffect()->mEnabled)
             {
-                activeLayer->GetShadingEffect()->mIntensity = intensity / 10.0f;
+                gui.CutTop(18).Text("Contour Color", Alignment::Left, olc::BLACK);
+                gui.CutTop(100);
+                if (gui.ColorPicker("fx_contour_color", activeLayer->GetContourEffect()->mColor))
+                {
+                    mDrawing->RenderAll();
+                }
+            }
+        }
+        else if (activeFXTab == 1) // Shading tab
+        {
+            gui.CutTop(18);
+            if (gui.CheckBox("fx_shading_enabled", "Enabled", activeLayer->GetShadingEffect()->mEnabled, olc::WHITE, olc::BLACK))
+            {
                 mDrawing->RenderAll();
             }
 
-            gui.CutTop(3).Spacer();
-
-            gui.CutTop(18).Text("Shadow Color", Alignment::Left, olc::BLACK);
-            gui.CutTop(100);
-            if (gui.ColorPicker("fx_shadow_color", activeLayer->GetShadingEffect()->mColor))
+            if (activeLayer->GetShadingEffect()->mEnabled)
             {
-                mDrawing->RenderAll();
+                gui.CutTop(18).Text("Light Position", Alignment::Left, olc::BLACK);
+                gui.CutTop(18);
+                if (gui.CutLeft(0.5f).Spinner("fx_light_x", activeLayer->GetShadingEffect()->mLightPosition.x, -999, 999, 1, controlColor))
+                    mDrawing->RenderAll();
+                if (gui.CutRight(1.0f).Spinner("fx_light_y", activeLayer->GetShadingEffect()->mLightPosition.y, -999, 999, 1, controlColor))
+                    mDrawing->RenderAll();
+                gui.Spacer();
+
+                gui.CutTop(3).Spacer();
+
+                gui.CutTop(18).Text("Intensity", Alignment::Left, olc::BLACK);
+                gui.CutTop(18);
+                int intensity = static_cast<int>(activeLayer->GetShadingEffect()->mIntensity * 10.0f);
+                if (gui.HSlider("fx_intensity", intensity, 0, 10, controlColor))
+                {
+                    activeLayer->GetShadingEffect()->mIntensity = intensity / 10.0f;
+                    mDrawing->RenderAll();
+                }
+
+                gui.CutTop(3).Spacer();
+
+                gui.CutTop(18).Text("Shadow Color", Alignment::Left, olc::BLACK);
+                gui.CutTop(100);
+                if (gui.ColorPicker("fx_shadow_color", activeLayer->GetShadingEffect()->mColor))
+                {
+                    mDrawing->RenderAll();
+                }
             }
         }
     }
 
     void BuildRightSidebar()
     {
-        const std::vector<std::string> tabs = { "Layers", "Properties", "FX" };
+        const std::vector<std::string> tabs = { "Layers", "Element", "FX" };
 
         // layers
         gui.CutRight(160).Panel(PanelStyle::Flat, gui.AdjustValue(controlColor, 0.5f), 2);
@@ -320,20 +377,20 @@ public:
         // Tabs
         gui.CutTop(18);
         {
-            gui.TabBar(tabs, activeTab, controlColor);
+            gui.TabBar(tabs, activeMainTab, controlColor);
         }
         gui.Spacer();
 
         gui.Panel(PanelStyle::Raised, controlColor, 2);
-        if (activeTab == 0) // Layers tab
+        if (activeMainTab == 0) // Layers tab
         {
             LayersTab();
         }
-        else if (activeTab == 1) // Properties tab
+        else if (activeMainTab == 1) // Properties tab
         {
             PropertiesTab();
         }
-        else if (activeTab == 2) // FX tab
+        else if (activeMainTab == 2) // FX tab
         {
             FXTab();
         }
@@ -346,7 +403,7 @@ public:
         gui.CutBottom(16).Panel(PanelStyle::Raised, controlColor, 2);
 
         gui.CutLeft(0.25f);
-        gui.Text("Pixel Shaper", Alignment::Left, gui.AdjustValue(controlColor, 0.15f));
+        gui.Text("Pixel Shaper by Diego", Alignment::Left, gui.AdjustValue(controlColor, 0.15f));
 
         gui.CutRight(64);
         gui.HSlider("zoom", zoom, 1, 4);
@@ -459,6 +516,8 @@ public:
         mDrawing.reset(new Shaper(drawingWidth, drawingHeight));
         activeLayer = mDrawing->AddLayer();
         mDrawing->RenderAll();
+        pan = { 0, 0 };
+        zoom = 1;
     }
 
     bool EditElement(Element* shape, bool isSelected)
@@ -698,12 +757,68 @@ public:
         }
     }
 
+    void OpenDrawing()
+    {
+        NFD::Guard nfdGuard;
+        NFD::UniquePath inPath;
+
+        nfdfilteritem_t filterItem[1] = {{ "PixelShaper Project", "pshape" }};
+
+        nfdresult_t result = NFD::OpenDialog(inPath, filterItem, 1);
+        if (result == NFD_OKAY)
+        {
+            std::ifstream file(inPath.get());
+            json in;
+            file >> in;
+            file.close();
+
+            // Load the drawing from the JSON
+            mDrawing = std::make_unique<Shaper>();
+            mDrawing->Deserialize(in);
+
+            pan = { 0, 0 };
+            zoom = 1;
+            activeLayer = mDrawing->GetLayers().front();
+
+            mDrawing->RenderAll();
+        }
+    }
+
+    void SaveDrawing()
+    {
+        if (!mDrawing) return;
+
+        NFD::Guard nfdGuard;
+        NFD::UniquePath outPath;
+
+        nfdfilteritem_t filterItem[1] = {{ "PixelShaper Project", "pshape" }};
+
+        nfdresult_t result = NFD::SaveDialog(outPath, filterItem, 1);
+        if (result == NFD_OKAY)
+        {
+            json out;
+            mDrawing->Serialize(out);
+
+            auto path = std::filesystem::path(outPath.get());
+
+            // path ends with extension?
+            if (!path.has_extension())
+            {
+                path.replace_extension(".pshape");
+            }
+
+            std::ofstream file(path);
+            file << out.dump(4);
+            file.close();
+        }
+    }
+
     int zoom{ 1 };
     olc::vi2d pan{ 0, 0 };
     int drawingWidth{ 200 }, drawingHeight{ 200 };
     int lastMouseX{ 0 }, lastMouseY{ 0 };
     bool dragging{ false };
-    int activeTab{ 0 };
+    int activeMainTab{ 0 }, activeFXTab{ 0 };
 
     enum class ManipulationMode {
         None,
@@ -730,7 +845,7 @@ int main()
     ExampleApp demo;
     
     // Initialize the engine with screen dimensions and pixel size
-    if (demo.Construct(640, 360, 2, 2))
+    if (demo.Construct(800, 480, 2, 2))
     {
         demo.Start();
     }

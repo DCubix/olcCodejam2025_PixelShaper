@@ -1,0 +1,274 @@
+{
+    "height": 200,
+    "layer_order": [
+        2,
+        1,
+        3
+    ],
+    "layers": [
+        {
+            "effects": {
+                "contour": {
+                    "color": [
+                        0,
+                        0,
+                        0,
+                        255
+                    ],
+                    "enabled": false,
+                    "intensity": 0.6000000238418579,
+                    "light_position": [
+                        30,
+                        10
+                    ]
+                },
+                "shading": {
+                    "color": [
+                        11,
+                        105,
+                        168,
+                        255
+                    ],
+                    "enabled": true,
+                    "intensity": 0.6000000238418579,
+                    "light_position": [
+                        30,
+                        10
+                    ]
+                }
+            },
+            "elements": [
+                {
+                    "color": [
+                        255,
+                        255,
+                        255,
+                        255
+                    ],
+                    "position": [
+                        148,
+                        85
+                    ],
+                    "rotation": 0.0,
+                    "size": [
+                        40,
+                        20
+                    ],
+                    "subtractive": false,
+                    "type": "ellipse"
+                },
+                {
+                    "color": [
+                        255,
+                        255,
+                        255,
+                        255
+                    ],
+                    "position": [
+                        123,
+                        78
+                    ],
+                    "rotation": 0.0,
+                    "size": [
+                        50,
+                        32
+                    ],
+                    "subtractive": false,
+                    "type": "ellipse"
+                },
+                {
+                    "color": [
+                        255,
+                        255,
+                        255,
+                        255
+                    ],
+                    "position": [
+                        84,
+                        86
+                    ],
+                    "rotation": 0.0,
+                    "size": [
+                        54,
+                        20
+                    ],
+                    "subtractive": false,
+                    "type": "ellipse"
+                },
+                {
+                    "color": [
+                        255,
+                        255,
+                        255,
+                        255
+                    ],
+                    "position": [
+                        98,
+                        76
+                    ],
+                    "rotation": -0.21867021918296814,
+                    "size": [
+                        22,
+                        14
+                    ],
+                    "subtractive": false,
+                    "type": "ellipse"
+                },
+                {
+                    "color": [
+                        255,
+                        255,
+                        255,
+                        255
+                    ],
+                    "position": [
+                        113,
+                        94
+                    ],
+                    "rotation": 0.0,
+                    "size": [
+                        122,
+                        20
+                    ],
+                    "subtractive": true,
+                    "type": "rectangle"
+                }
+            ],
+            "id": 1,
+            "merge_smoothness": 0.0,
+            "name": "Layer 1"
+        },
+        {
+            "effects": {
+                "contour": {
+                    "color": [
+                        0,
+                        0,
+                        0,
+                        255
+                    ],
+                    "enabled": false,
+                    "intensity": 0.5,
+                    "light_position": [
+                        0,
+                        0
+                    ]
+                },
+                "shading": {
+                    "color": [
+                        0,
+                        0,
+                        0,
+                        255
+                    ],
+                    "enabled": false,
+                    "intensity": 0.5,
+                    "light_position": [
+                        0,
+                        0
+                    ]
+                }
+            },
+            "elements": [
+                {
+                    "color": [
+                        23,
+                        155,
+                        244,
+                        255
+                    ],
+                    "position": [
+                        103,
+                        100
+                    ],
+                    "rotation": 0.0,
+                    "size": [
+                        206,
+                        206
+                    ],
+                    "subtractive": false,
+                    "type": "rectangle"
+                }
+            ],
+            "id": 2,
+            "merge_smoothness": 0.0,
+            "name": "Layer 2"
+        },
+        {
+            "effects": {
+                "contour": {
+                    "color": [
+                        0,
+                        0,
+                        0,
+                        255
+                    ],
+                    "enabled": true,
+                    "intensity": 0.5,
+                    "light_position": [
+                        0,
+                        0
+                    ]
+                },
+                "shading": {
+                    "color": [
+                        4,
+                        44,
+                        102,
+                        255
+                    ],
+                    "enabled": true,
+                    "intensity": 0.5,
+                    "light_position": [
+                        0,
+                        0
+                    ]
+                }
+            },
+            "elements": [
+                {
+                    "color": [
+                        15,
+                        131,
+                        4,
+                        255
+                    ],
+                    "position": [
+                        185,
+                        177
+                    ],
+                    "rotation": 0.0,
+                    "size": [
+                        174,
+                        72
+                    ],
+                    "subtractive": false,
+                    "type": "ellipse"
+                },
+                {
+                    "color": [
+                        17,
+                        131,
+                        6,
+                        255
+                    ],
+                    "position": [
+                        27,
+                        181
+                    ],
+                    "rotation": 0.0,
+                    "size": [
+                        242,
+                        56
+                    ],
+                    "subtractive": false,
+                    "type": "ellipse"
+                }
+            ],
+            "id": 3,
+            "merge_smoothness": 14.199999809265137,
+            "name": "Layer 3"
+        }
+    ],
+    "width": 200
+}

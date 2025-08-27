@@ -2,6 +2,35 @@ cmake_minimum_required(VERSION 3.16)
 
 project(PixerShaper VERSION 1.0.0 LANGUAGES CXX)
 
+# Include CPM (CMake Package Manager)
+include(cmake/CPM.cmake)
+
+# Add nativefiledialog-extended dependency
+CPMAddPackage(
+    NAME nativefiledialog_extended
+    GITHUB_REPOSITORY btzy/nativefiledialog-extended
+    GIT_TAG v1.2.1
+)
+
+if (nativefiledialog_extended_ADDED)
+    add_library(nativefiledialog_extended INTERFACE IMPORTED)
+    target_include_directories(nativefiledialog_extended INTERFACE ${nativefiledialog_extended_SOURCE_DIR}/src/include)
+endif()
+
+# Add nlohmann's JSON dependency
+CPMAddPackage(
+    NAME nlohmann_json
+    VERSION 3.12.0
+    # the git repo is incredibly large, so we download the archived include directory
+    URL https://github.com/nlohmann/json/releases/download/v3.12.0/include.zip
+    URL_HASH SHA256=b8cb0ef2dd7f57f18933997c9934bb1fa962594f701cd5a8d3c2c80541559372
+)
+
+if (nlohmann_json_ADDED)
+    add_library(nlohmann_json INTERFACE IMPORTED)
+    target_include_directories(nlohmann_json INTERFACE ${nlohmann_json_SOURCE_DIR}/include)
+endif()
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,7 +77,7 @@ add_executable(${PROJECT_NAME}
 )
 
 # Link libraries
-target_link_libraries(${PROJECT_NAME} ${PLATFORM_LIBS})
+target_link_libraries(${PROJECT_NAME} ${PLATFORM_LIBS} nfd nlohmann_json)
 
 # Compiler-specific options
 if(MSVC)

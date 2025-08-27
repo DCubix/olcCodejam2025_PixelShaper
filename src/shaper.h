@@ -6,7 +6,16 @@
 #include <vector>
 #include <memory>
 
-class Element {
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
+class ISerializable {
+public:
+    virtual void Serialize(json& out) const = 0;
+    virtual void Deserialize(const json& in) = 0;
+};
+
+class Element : public ISerializable {
 public:
     Element() = default;
     virtual ~Element() = default;
@@ -20,6 +29,9 @@ public:
 
     virtual float GetSDF(olc::vf2d p) const = 0;
     virtual bool IsPointInside(const olc::vi2d& point) const = 0;
+
+    virtual void Serialize(json& out) const override;
+    virtual void Deserialize(const json& in) override;
 
     void SetPosition(const olc::vi2d& position) { mPosition = position; }
     olc::vi2d GetPosition() const { return mPosition; }
@@ -55,6 +67,8 @@ public:
 
     float GetSDF(olc::vf2d p) const override;
     bool IsPointInside(const olc::vi2d& point) const override;
+
+    virtual void Serialize(json& out) const override;
 };
 
 class RectangleElement : public Element {
@@ -69,16 +83,20 @@ public:
 
     float GetSDF(olc::vf2d p) const override;
     bool IsPointInside(const olc::vi2d& point) const override;
+
+    virtual void Serialize(json& out) const override;
 };
 
 class Layer;
 
-class Effect {
+class Effect : public ISerializable {
 public:
     Effect() = default;
     virtual ~Effect() = default;
 
     virtual void Apply(Layer* target) = 0;
+    virtual void Serialize(json& out) const override;
+    virtual void Deserialize(const json& in) override;
 
     bool mEnabled{ false };
 };
@@ -86,6 +104,8 @@ public:
 class ContourEffect : public Effect {
 public:
     void Apply(Layer* target) override;
+    void Serialize(json& out) const override;
+    void Deserialize(const json& in) override;
 
     olc::Pixel mColor{ 0, 0, 0, 255 };
 };
@@ -93,13 +113,15 @@ public:
 class ShadingEffect : public Effect {
 public:
     void Apply(Layer* target) override;
+    void Serialize(json& out) const override;
+    void Deserialize(const json& in) override;
 
     float mIntensity{ 0.5f };
     olc::Pixel mColor{ 0, 0, 0, 255 };
     olc::vi2d mLightPosition{ 0, 0 };
 };
 
-class Layer {
+class Layer : public ISerializable {
 public:
     Layer() = default;
     Layer(int width, int height) {
@@ -117,6 +139,9 @@ public:
     void Clear();
 
     void Render();
+
+    void Serialize(json& out) const override;
+    void Deserialize(const json& in) override;
 
     std::string GetName() const { return mName; }
     void SetName(const std::string& name) { mName = name; }
@@ -146,7 +171,7 @@ private:
     static size_t mNextID;
 };
 
-class Shaper {
+class Shaper : public ISerializable {
 public:
     Shaper() = default;
     Shaper(int width, int height)
@@ -160,6 +185,9 @@ public:
 
     void RenderAll();
     void Resize(int width, int height);
+
+    void Serialize(json& out) const override;
+    void Deserialize(const json& in) override;
 
     int GetWidth() const { return mWidth; }
     int GetHeight() const { return mHeight; }
