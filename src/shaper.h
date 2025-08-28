@@ -189,6 +189,8 @@ public:
     void Serialize(json& out) const override;
     void Deserialize(const json& in) override;
 
+    void ExportPNG(const std::string& path);
+
     int GetWidth() const { return mWidth; }
     int GetHeight() const { return mHeight; }
 

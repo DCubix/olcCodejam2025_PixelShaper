@@ -43,6 +43,7 @@ public:
         gui.AddIcon("assets/open.png"); // 10
         gui.AddIcon("assets/save.png"); // 11
         gui.AddIcon("assets/enabled.png"); // 12
+        gui.AddIcon("assets/image.png"); // 13
 
         RecreateDrawing();
 
@@ -93,10 +94,10 @@ public:
             SaveDrawing();
         }
 
-        gui.CutLeft(4).Spacer();
+        gui.CutLeft(6).Spacer();
 
         // Circle
-        w = GetTextSizeProp("Add Ellipse").x + 20;
+        w = GetTextSizeProp("Add Ellipse").x + 25;
         if (gui.CutLeft(w).Button("add_ellipse", "$[2] Add Ellipse", controlColor))
         {
             activeLayer->AddElement(
@@ -106,13 +107,21 @@ public:
         }
 
         // Rectangle
-        w = GetTextSizeProp("Add Rectangle").x + 20;
+        w = GetTextSizeProp("Add Rectangle").x + 25;
         if (gui.CutLeft(w).Button("add_rectangle", "$[3] Add Rectangle", controlColor))
         {
             activeLayer->AddElement(
                 new RectangleElement(olc::vi2d(mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2), olc::vi2d(40, 20), 0.0f, olc::WHITE)
             );
             mDrawing->RenderAll();
+        }
+
+        gui.CutLeft(6).Spacer();
+
+        w = GetTextSizeProp("Export PNG").x + 25;
+        if (gui.CutLeft(w).Button("export_png", "$[13] Export PNG", controlColor))
+        {
+            ExportPNG();
         }
 
         gui.Spacer();
@@ -810,6 +819,25 @@ public:
             std::ofstream file(path);
             file << out.dump(4);
             file.close();
+        }
+    }
+
+    void ExportPNG()
+    {
+        if (!mDrawing) return;
+
+        NFD::Guard nfdGuard;
+        NFD::UniquePath outPath;
+
+        nfdfilteritem_t filterItem[1] = {{ "Portable Network Graphics", "png" }};
+
+        nfdresult_t result = NFD::SaveDialog(outPath, filterItem, 1);
+        if (result == NFD_OKAY)
+        {
+            auto path = std::filesystem::path(outPath.get());
+            if (!path.has_extension())
+                path.replace_extension(".png");
+            mDrawing->ExportPNG(path.string());
         }
     }
 

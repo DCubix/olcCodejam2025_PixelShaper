@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "stb_image_write.h"
+
 size_t Layer::mNextID = 1;
 
 float EllipseElement::GetSDF(olc::vf2d p) const
@@ -556,6 +558,58 @@ void Shaper::Deserialize(const json &in)
     {
         mLayerOrder.push_back(id);
     }
+}
+
+void Shaper::ExportPNG(const std::string &path)
+{
+    if (mLayers.empty()) return;
+
+    std::unique_ptr<olc::Sprite> out = std::make_unique<olc::Sprite>(mWidth, mHeight);
+    RenderAll();
+
+    // compose final image 
+    for (const auto& layerID : mLayerOrder)
+    {
+        Layer* layer = GetLayer(layerID);
+        if (!layer) continue;
+
+        for (int y = 0; y < mHeight; y++)
+        {
+            for (int x = 0; x < mWidth; x++)
+            {
+                olc::Pixel src = layer->GetSurface()->GetPixel(x, y);
+                olc::Pixel dst = out->GetPixel(x, y);
+
+                float alpha = src.a / 255.0f;
+                float invAlpha = 1.0f - alpha;
+
+                olc::Pixel result;
+                result.r = uint8_t(std::clamp(int(src.r * alpha + dst.r * invAlpha), 0, 255));
+                result.g = uint8_t(std::clamp(int(src.g * alpha + dst.g * invAlpha), 0, 255));
+                result.b = uint8_t(std::clamp(int(src.b * alpha + dst.b * invAlpha), 0, 255));
+                result.a = uint8_t(std::clamp(int(src.a + dst.a * invAlpha), 0, 255));
+
+                out->SetPixel(x, y, result);
+            }
+        }
+    }
+
+    std::vector<uint8_t> imageData;
+    imageData.reserve(mWidth * mHeight * 4); // RGBA
+
+    for (int y = 0; y < mHeight; y++)
+    {
+        for (int x = 0; x < mWidth; x++)
+        {
+            olc::Pixel pixel = out->GetPixel(x, y);
+            imageData.push_back(pixel.r);
+            imageData.push_back(pixel.g);
+            imageData.push_back(pixel.b);
+            imageData.push_back(pixel.a);
+        }
+    }
+
+    stbi_write_png(path.c_str(), mWidth, mHeight, 4, imageData.data(), mWidth * 4);
 }
 
 Layer *Shaper::GetLayer(size_t id) const
