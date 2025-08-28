@@ -733,7 +733,7 @@ void ShadingEffect::Apply(Layer *target)
             if (originalColor.a == 0) continue;
             
             // Calculate light direction: from pixel to light source
-            v3 L{ mLightPosition.x - x, mLightPosition.y - y, float(surface->width) / 2.0f };
+            v3 L{ float(mLightPosition.x - x), float(mLightPosition.y - y), float(surface->width) / 2.0f };
             L = L.norm();
 
             olc::Pixel normalMap = target->GetNormals()->GetPixel(x, y);
