@@ -56,7 +56,6 @@ elseif(UNIX AND NOT APPLE)
     find_package(PNG REQUIRED)
     
     set(PLATFORM_LIBS ${OPENGL_LIBRARIES} ${X11_LIBRARIES} Threads::Threads pthread stdc++fs PNG::PNG)
-    
 elseif(APPLE)
     # macOS-specific libraries
     find_library(OPENGL_FRAMEWORK OpenGL)
@@ -64,6 +63,17 @@ elseif(APPLE)
     find_library(IOKIT_FRAMEWORK IOKit)
     find_library(COREVIDEO_FRAMEWORK CoreVideo)
     find_package(PNG REQUIRED)
+    
+    # Set deployment target and architecture handling
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
+    endif()
+    
+    # Only set universal binary if explicitly requested, otherwise use native architecture
+    if(NOT CMAKE_OSX_ARCHITECTURES)
+        # Let CMake use the native architecture by default
+        message(STATUS "Using native architecture for macOS build")
+    endif()
     
     set(PLATFORM_LIBS ${OPENGL_FRAMEWORK} ${COCOA_FRAMEWORK} ${IOKIT_FRAMEWORK} ${COREVIDEO_FRAMEWORK} PNG::PNG)
 endif()
@@ -80,7 +90,7 @@ add_executable(${PROJECT_NAME}
 )
 
 # Link libraries
-target_link_libraries(${PROJECT_NAME} ${PLATFORM_LIBS} nfd nlohmann_json)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PLATFORM_LIBS} nfd nlohmann_json)
 
 # Compiler-specific options
 if(MSVC)

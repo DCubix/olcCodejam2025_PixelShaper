@@ -31,11 +31,23 @@ echo "🔨 Configuring build..."
 mkdir -p build-macos
 cd build-macos
 
-# Configure CMake with universal binary support
+# Detect current architecture
+ARCH=$(uname -m)
+echo "🖥️  Detected architecture: $ARCH"
+
+# Configure CMake - use native architecture by default, universal binary if requested
+if [ "$1" = "--universal" ]; then
+    echo "🔧 Building universal binary (Intel + Apple Silicon)"
+    CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+else
+    echo "🔧 Building for native architecture ($ARCH)"
+    CMAKE_ARGS=""
+fi
+
 cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
+    $CMAKE_ARGS
 
 if [ $? -ne 0 ]; then
     echo "❌ CMake configuration failed"
@@ -102,3 +114,7 @@ echo ""
 echo "🚀 To run:"
 echo "   • Double-click PixelShaper.app"
 echo "   • Or run: ./build/PixerShaper"
+echo ""
+echo "💡 Build options:"
+echo "   • Native build: ./build-macos.sh"
+echo "   • Universal binary: ./build-macos.sh --universal"

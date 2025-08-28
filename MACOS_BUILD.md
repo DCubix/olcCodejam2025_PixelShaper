@@ -41,7 +41,12 @@ If you have access to a Mac, this is the fastest and most straightforward method
 2. **Run the build script**:
    ```bash
    chmod +x build-macos.sh
+   
+   # For native architecture (recommended on Apple Silicon)
    ./build-macos.sh
+   
+   # For universal binary (Intel + Apple Silicon)
+   ./build-macos.sh --universal
    ```
 
 3. **Manual build** (alternative):
@@ -66,13 +71,18 @@ Automated cloud building - no Mac required:
 2. **Push to main branch** or manually trigger the workflow
 3. **Download artifacts** from the Actions tab
 
-The workflow file is already created at: `.github/workflows/build-macos.yml`
+The workflow builds **both native and universal** binaries automatically.
+
+**Manual Trigger Options:**
+- Go to Actions tab → "Build macOS" → "Run workflow"
+- Choose build type: `native` (faster) or `universal` (compatible with both architectures)
 
 **Benefits:**
 - ✅ No macOS hardware required
-- ✅ Automatic universal binary (Intel + Apple Silicon)
+- ✅ Builds both native and universal binaries
 - ✅ Consistent build environment
 - ✅ Easy to share builds
+- ✅ Automatic architecture detection
 
 ### Option 3: macOS Virtual Machine
 
@@ -89,9 +99,20 @@ For Windows/Linux users who want to build locally:
 
 ## 📱 Output Files
 
-After building, you'll get:
+After building, you'll get different files depending on the build method:
 
-### Executable
+### Local Build
+- **Executable**: `build-macos/build/PixerShaper`
+- **App Bundle**: `build-macos/PixelShaper.app`
+- **Assets**: `build-macos/build/assets/`
+
+### GitHub Actions Artifacts
+- **Native Build**: `pixelshaper-macos-native.zip`
+  - Contains: executable, app bundle, DMG for current GitHub runner architecture
+- **Universal Build**: `pixelshaper-macos-universal.zip`
+  - Contains: universal executable, app bundle, DMG (runs on both Intel and Apple Silicon)
+
+### Executable Details
 - **Location**: `build-macos/build/PixerShaper`
 - **Type**: Universal binary (runs on Intel and Apple Silicon Macs)
 - **Usage**: `./PixerShaper`
@@ -133,6 +154,17 @@ The build creates a universal binary that runs natively on:
 ## 🐛 Troubleshooting
 
 ### Common Issues
+
+**"found architecture 'arm64', required architecture 'x86_64'" (Apple Silicon Macs)**
+This happens when trying to build x86_64 on Apple Silicon with arm64 libraries:
+```bash
+# Solution 1: Build for native architecture (recommended)
+./build-macos.sh
+
+# Solution 2: Install x86_64 libraries for universal build
+arch -x86_64 brew install libpng
+./build-macos.sh --universal
+```
 
 **"xcode-select: error: tool 'xcodebuild' requires Xcode"**
 ```bash
