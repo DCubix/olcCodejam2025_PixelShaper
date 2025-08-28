@@ -1,0 +1,131 @@
+# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
+name: CMake on multiple platforms
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: ${{ matrix.os }} • ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build_type: [Release]  # add Debug if desired
+
+    env:
+      BUILD_DIR: build
+      CMAKE_GENERATOR: Ninja
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "1"
+      CCACHE_MAXSIZE: "500M"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ---------- Platform dependencies ----------
+      - name: Install deps (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build ccache
+          cmake --version
+          ninja --version
+
+      - name: Install deps (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew update
+          brew install cmake ninja ccache || true
+          cmake --version
+          ninja --version
+
+      - name: Setup MSVC env (Windows)
+        if: startsWith(matrix.os, 'windows')
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install deps (Windows)
+        if: startsWith(matrix.os, 'windows')
+        shell: bash
+        run: |
+          choco install ninja --yes
+          choco install ccache --yes || true
+          cmake --version
+          ninja --version
+
+      # ---------- Cache ccache ----------
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', '**/*.[ch]pp', '**/*.[ch]') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.build_type }}-
+
+      # ---------- Configure ----------
+      - name: Configure (CMake)
+        shell: bash
+        run: |
+          cmake -E make_directory "$BUILD_DIR"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cmake -S . -B "$BUILD_DIR" -G "$CMAKE_GENERATOR" \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            cmake -S . -B "$BUILD_DIR" -G "$CMAKE_GENERATOR" \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          else
+            cmake -S . -B "$BUILD_DIR" -G "$CMAKE_GENERATOR" \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          fi
+
+      # ---------- Build ----------
+      - name: Build
+        shell: bash
+        run: cmake --build "$BUILD_DIR" --config ${{ matrix.build_type }} -- -v
+
+      # ---------- Test ----------
+      - name: Test (CTest)
+        shell: bash
+        working-directory: ${{ env.BUILD_DIR }}
+        run: ctest --output-on-failure -C ${{ matrix.build_type }}
+
+      # ---------- (Optional) Package ----------
+      - name: Package (CPack)
+        shell: bash
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          cpack -C ${{ matrix.build_type }} || true
+
+      # ---------- Upload artifacts ----------
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}-${{ matrix.build_type }}-artifacts
+          path: |
+            ${{ env.BUILD_DIR }}/**/*.exe
+            ${{ env.BUILD_DIR }}/**/*.dll
+            ${{ env.BUILD_DIR }}/**/*.so
+            ${{ env.BUILD_DIR }}/**/*.dylib
+            ${{ env.BUILD_DIR }}/**/*.a
+            ${{ env.BUILD_DIR }}/**/*.zip
+            ${{ env.BUILD_DIR }}/**/*.tar.*
+            ${{ env.BUILD_DIR }}/**/*.pkg
+            !${{ env.BUILD_DIR }}/CMakeFiles/**
