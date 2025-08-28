@@ -112,7 +112,7 @@ endif()
 if(APPLE)
     # Find and link GLUT
     find_package(GLUT REQUIRED)
-    target_link_libraries(${PROJECT_NAME} ${GLUT_LIBRARIES})
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${GLUT_LIBRARIES})
     target_include_directories(${PROJECT_NAME} PRIVATE ${GLUT_INCLUDE_DIRS})
 endif()
 
