@@ -459,6 +459,10 @@ int main()
 #define OLC_KEYBOARD_UK
 #endif
 
+#if defined(__APPLE__)
+#include <cassert>
+#endif
+
 
 #if defined(USE_EXPERIMENTAL_FS) || defined(FORCE_EXPERIMENTAL_FS)
 	// C++14
