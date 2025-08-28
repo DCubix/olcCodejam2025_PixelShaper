@@ -11,6 +11,8 @@
 #include <regex>
 #include <fstream>
 #include <filesystem>
+#include <sstream>
+#include <iomanip>
 
 const olc::Pixel gizmoColor = olc::Pixel(80, 139, 237);
 const olc::Pixel gizmoColorGrey = olc::Pixel(128, 128, 128);
@@ -685,7 +687,7 @@ public:
         }
         else if (GetMouse(0).bReleased)
         {
-            manipulationMode = ManipulationMode::None;
+            manipulationMode = ManipulationMode::NoneMode;
         }
 
         if (manipulationMode == ManipulationMode::Move)
@@ -758,11 +760,13 @@ public:
     {
         if (selectedElement)
         {
-            selectedElementHtmlColor = 
-                "#" + std::format("{:02X}", selectedElement->mColor.r) +
-                std::format("{:02X}", selectedElement->mColor.g) +
-                std::format("{:02X}", selectedElement->mColor.b) +
-                std::format("{:02X}", selectedElement->mColor.a);
+            std::stringstream ss;
+            ss << "#" << std::hex << std::uppercase << std::setfill('0')
+               << std::setw(2) << static_cast<int>(selectedElement->mColor.r)
+               << std::setw(2) << static_cast<int>(selectedElement->mColor.g)
+               << std::setw(2) << static_cast<int>(selectedElement->mColor.b)
+               << std::setw(2) << static_cast<int>(selectedElement->mColor.a);
+            selectedElementHtmlColor = ss.str();
         }
     }
 
@@ -849,11 +853,11 @@ public:
     int activeMainTab{ 0 }, activeFXTab{ 0 };
 
     enum class ManipulationMode {
-        None,
+        NoneMode,
         Move,
         Resize,
         Rotate
-    } manipulationMode;
+    } manipulationMode{ ManipulationMode::NoneMode };
 
     Element* selectedElement{ nullptr };
     int selectedElementRotation{ 0 };

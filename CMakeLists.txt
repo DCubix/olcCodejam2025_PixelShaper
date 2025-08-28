@@ -53,8 +53,9 @@ elseif(UNIX AND NOT APPLE)
     # Linux-specific libraries
     find_package(X11 REQUIRED)
     find_package(Threads REQUIRED)
+    find_package(PNG REQUIRED)
     
-    set(PLATFORM_LIBS ${OPENGL_LIBRARIES} ${X11_LIBRARIES} Threads::Threads pthread stdc++fs)
+    set(PLATFORM_LIBS ${OPENGL_LIBRARIES} ${X11_LIBRARIES} Threads::Threads pthread stdc++fs PNG::PNG)
     
 elseif(APPLE)
     # macOS-specific libraries
@@ -62,8 +63,9 @@ elseif(APPLE)
     find_library(COCOA_FRAMEWORK Cocoa)
     find_library(IOKIT_FRAMEWORK IOKit)
     find_library(COREVIDEO_FRAMEWORK CoreVideo)
+    find_package(PNG REQUIRED)
     
-    set(PLATFORM_LIBS ${OPENGL_FRAMEWORK} ${COCOA_FRAMEWORK} ${IOKIT_FRAMEWORK} ${COREVIDEO_FRAMEWORK})
+    set(PLATFORM_LIBS ${OPENGL_FRAMEWORK} ${COCOA_FRAMEWORK} ${IOKIT_FRAMEWORK} ${COREVIDEO_FRAMEWORK} PNG::PNG)
 endif()
 
 # Include directories
@@ -97,12 +99,7 @@ else()
 endif()
 
 # Platform-specific compile definitions
-if(APPLE)
-    # Find and link GLUT
-    find_package(GLUT REQUIRED)
-    target_link_libraries(${PROJECT_NAME} ${GLUT_LIBRARIES})
-    target_include_directories(${PROJECT_NAME} PRIVATE ${GLUT_INCLUDE_DIRS})
-endif()
+# (Removed GLUT requirement for macOS as olcPixelGameEngine uses native frameworks)
 
 # Set output directory
 set_target_properties(${PROJECT_NAME} PROPERTIES

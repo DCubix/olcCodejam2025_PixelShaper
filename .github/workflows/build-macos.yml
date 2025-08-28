@@ -1,0 +1,89 @@
+name: Build macOS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        # Install CMake if not available
+        brew install cmake
+        
+        # Install required libraries
+        brew install libpng
+        
+    - name: Configure CMake
+      run: |
+        mkdir build-macos
+        cd build-macos
+        cmake .. -DCMAKE_BUILD_TYPE=Release \
+                 -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
+                 -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+    
+    - name: Build
+      run: |
+        cd build-macos
+        cmake --build . --config Release -j$(sysctl -n hw.ncpu)
+    
+    - name: Create DMG (optional)
+      run: |
+        cd build-macos
+        mkdir -p PixelShaper.app/Contents/MacOS
+        mkdir -p PixelShaper.app/Contents/Resources
+        cp build/PixerShaper PixelShaper.app/Contents/MacOS/
+        cp -r build/assets PixelShaper.app/Contents/Resources/
+        
+        # Create a simple Info.plist
+        cat > PixelShaper.app/Contents/Info.plist << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleExecutable</key>
+            <string>PixerShaper</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.dcubix.pixelshaper</string>
+            <key>CFBundleName</key>
+            <string>PixelShaper</string>
+            <key>CFBundleDisplayName</key>
+            <string>PixelShaper</string>
+            <key>CFBundleVersion</key>
+            <string>1.0.0</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0.0</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>LSMinimumSystemVersion</key>
+            <string>10.15</string>
+        </dict>
+        </plist>
+        EOF
+        
+        # Create DMG
+        mkdir -p dmg-temp
+        cp -r PixelShaper.app dmg-temp/
+        ln -s /Applications dmg-temp/Applications
+        
+        hdiutil create -volname "PixelShaper" -srcfolder dmg-temp -ov -format UDZO PixelShaper.dmg
+    
+    - name: Upload macOS build
+      uses: actions/upload-artifact@v4
+      with:
+        name: pixelshaper-macos
+        path: |
+          build-macos/build/PixerShaper
+          build-macos/build/assets/
+          build-macos/PixelShaper.app/
+          build-macos/PixelShaper.dmg

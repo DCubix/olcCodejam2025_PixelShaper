@@ -43,5 +43,7 @@
 .vs/
 .vscode/
 build/
+build-linux/
+build-macos/
 out/
 bin/
