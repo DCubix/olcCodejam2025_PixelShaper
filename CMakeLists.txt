@@ -94,9 +94,6 @@ else()
     # Additional flags for debug builds
     target_compile_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:-g>)
     target_compile_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:-O3>)
-
-    # Ignore C++11 narrowing warnings
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wno-c++11-narrowing)
 endif()
 
 # Platform-specific compile definitions
