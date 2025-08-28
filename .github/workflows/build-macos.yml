@@ -9,43 +9,30 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [x86_64, arm64]
-        build_type: [Release]
-    env:
-      BUILD_DIR: build-${{ matrix.arch }}
-      INSTALL_DIR: install-${{ matrix.arch }}
-      CMAKE_BUILD_PARALLEL_LEVEL: 4
     
-    name: Build macOS
+    name: Build macOS (ARM64 Native)
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-    
+
       - name: Install dependencies
         run: |
+          # Install CMake and libpng for native arm64
           brew install cmake libpng
-          
-          echo "Installing x86_64 libraries for universal build"
-          arch -x86_64 brew install libpng || true
-    
+
       - name: Configure CMake
         run: |
-          mkdir build-macos
+          mkdir -p build-macos
           cd build-macos
-          echo "🔧 Configuring ${{ matrix.build_type }} build"
+          echo "🔧 Configuring ARM64 native build"
           cmake .. -DCMAKE_BUILD_TYPE=Release \
-                  -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
-                  -DCMAKE_OSX_ARCHITECTURES="${{ matrix.arch }}" \
-                  ${{ matrix.cmake_args }}
+                  -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
     
       - name: Build
         run: |
           cd build-macos
-          echo "🔨 Building ${{ matrix.build_type }} binary"
+          echo "🔨 Building ARM64 native binary"
           cmake --build . --config Release -j$(sysctl -n hw.ncpu) --parallel
     
       - name: Create App Bundle and DMG
@@ -84,21 +71,21 @@ jobs:
           </plist>
           EOF
           
-          # Create DMG with appropriate naming
+          # Create DMG
           mkdir -p dmg-temp
           cp -r PixelShaper.app dmg-temp/
           ln -s /Applications dmg-temp/Applications
           
-          DMG_NAME="PixelShaper-${{ matrix.build_type }}.dmg"
+          DMG_NAME="PixelShaper-macOS-ARM64.dmg"
           hdiutil create -volname "PixelShaper" -srcfolder dmg-temp -ov -format UDZO "$DMG_NAME"
           echo "📦 Created DMG: $DMG_NAME"
     
       - name: Upload macOS build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: pixelshaper-macos${{ matrix.name_suffix }}
+          name: pixelshaper-macos-arm64
           path: |
             build-macos/build/PixerShaper
             build-macos/build/assets/
             build-macos/PixelShaper.app/
-            build-macos/PixelShaper-${{ matrix.build_type }}.dmg
+            build-macos/PixelShaper-macOS-ARM64.dmg
