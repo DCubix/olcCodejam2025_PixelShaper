@@ -5,122 +5,100 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build type'
-        required: true
-        default: 'native'
-        type: choice
-        options:
-        - native
-        - universal
 
 jobs:
   build-macos:
     runs-on: macos-latest
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - build_type: native
-            name_suffix: "-native"
-            cmake_args: ""
-          - build_type: universal
-            name_suffix: "-universal"
-            cmake_args: "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+        arch: [x86_64, arm64]
+        build_type: [Release]
+    env:
+      BUILD_DIR: build-${{ matrix.arch }}
+      INSTALL_DIR: install-${{ matrix.arch }}
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
     
-    name: Build macOS (${{ matrix.build_type }})
+    name: Build macOS
     
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
     
-    - name: Install dependencies
-      run: |
-        # Install CMake if not available
-        brew install cmake
-        
-        # Install required libraries
-        brew install libpng
-        
-        # For universal builds, also install x86_64 libraries
-        if [ "${{ matrix.build_type }}" = "universal" ]; then
+      - name: Install dependencies
+        run: |
+          brew install cmake libpng
+          
           echo "Installing x86_64 libraries for universal build"
           arch -x86_64 brew install libpng || true
-        fi
     
-    - name: Configure CMake
-      run: |
-        mkdir build-macos
-        cd build-macos
-        echo "🔧 Configuring ${{ matrix.build_type }} build"
-        cmake .. -DCMAKE_BUILD_TYPE=Release \
-                 -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
-                 ${{ matrix.cmake_args }}
+      - name: Configure CMake
+        run: |
+          mkdir build-macos
+          cd build-macos
+          echo "🔧 Configuring ${{ matrix.build_type }} build"
+          cmake .. -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+                  -DCMAKE_OSX_ARCHITECTURES="${{ matrix.arch }}" \
+                  ${{ matrix.cmake_args }}
     
-    - name: Build
-      run: |
-        cd build-macos
-        echo "🔨 Building ${{ matrix.build_type }} binary"
-        cmake --build . --config Release -j$(sysctl -n hw.ncpu)
+      - name: Build
+        run: |
+          cd build-macos
+          echo "🔨 Building ${{ matrix.build_type }} binary"
+          cmake --build . --config Release -j$(sysctl -n hw.ncpu) --parallel
     
-    - name: Show build info
-      run: |
-        cd build-macos/build
-        echo "📋 Build information:"
-        file PixerShaper
-        ls -la PixerShaper
+      - name: Create App Bundle and DMG
+        run: |
+          cd build-macos
+          mkdir -p PixelShaper.app/Contents/MacOS
+          mkdir -p PixelShaper.app/Contents/Resources
+          cp build/PixerShaper PixelShaper.app/Contents/MacOS/
+          cp -r build/assets PixelShaper.app/Contents/Resources/
+          
+          # Create Info.plist
+          cat > PixelShaper.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>PixerShaper</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.dcubix.pixelshaper</string>
+              <key>CFBundleName</key>
+              <string>PixelShaper</string>
+              <key>CFBundleDisplayName</key>
+              <string>PixelShaper</string>
+              <key>CFBundleVersion</key>
+              <string>1.0.0</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0.0</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>LSMinimumSystemVersion</key>
+              <string>10.15</string>
+          </dict>
+          </plist>
+          EOF
+          
+          # Create DMG with appropriate naming
+          mkdir -p dmg-temp
+          cp -r PixelShaper.app dmg-temp/
+          ln -s /Applications dmg-temp/Applications
+          
+          DMG_NAME="PixelShaper-${{ matrix.build_type }}.dmg"
+          hdiutil create -volname "PixelShaper" -srcfolder dmg-temp -ov -format UDZO "$DMG_NAME"
+          echo "📦 Created DMG: $DMG_NAME"
     
-    - name: Create App Bundle and DMG
-      run: |
-        cd build-macos
-        mkdir -p PixelShaper.app/Contents/MacOS
-        mkdir -p PixelShaper.app/Contents/Resources
-        cp build/PixerShaper PixelShaper.app/Contents/MacOS/
-        cp -r build/assets PixelShaper.app/Contents/Resources/
-        
-        # Create Info.plist
-        cat > PixelShaper.app/Contents/Info.plist << 'EOF'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>CFBundleExecutable</key>
-            <string>PixerShaper</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.dcubix.pixelshaper</string>
-            <key>CFBundleName</key>
-            <string>PixelShaper</string>
-            <key>CFBundleDisplayName</key>
-            <string>PixelShaper</string>
-            <key>CFBundleVersion</key>
-            <string>1.0.0</string>
-            <key>CFBundleShortVersionString</key>
-            <string>1.0.0</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>NSHighResolutionCapable</key>
-            <true/>
-            <key>LSMinimumSystemVersion</key>
-            <string>10.15</string>
-        </dict>
-        </plist>
-        EOF
-        
-        # Create DMG with appropriate naming
-        mkdir -p dmg-temp
-        cp -r PixelShaper.app dmg-temp/
-        ln -s /Applications dmg-temp/Applications
-        
-        DMG_NAME="PixelShaper-${{ matrix.build_type }}.dmg"
-        hdiutil create -volname "PixelShaper" -srcfolder dmg-temp -ov -format UDZO "$DMG_NAME"
-        echo "📦 Created DMG: $DMG_NAME"
-    
-    - name: Upload macOS build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: pixelshaper-macos${{ matrix.name_suffix }}
-        path: |
-          build-macos/build/PixerShaper
-          build-macos/build/assets/
-          build-macos/PixelShaper.app/
-          build-macos/PixelShaper-${{ matrix.build_type }}.dmg
+      - name: Upload macOS build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixelshaper-macos${{ matrix.name_suffix }}
+          path: |
+            build-macos/build/PixerShaper
+            build-macos/build/assets/
+            build-macos/PixelShaper.app/
+            build-macos/PixelShaper-${{ matrix.build_type }}.dmg
