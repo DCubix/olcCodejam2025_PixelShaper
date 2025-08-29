@@ -1029,6 +1029,11 @@ Widget& GUI::GetWidget(const std::string& id)
     return widget;
 }
 
+bool GUI::WasClicked(const std::string &id)
+{
+    return mState.active == ID(id) && mState.mouseButton == -1;
+}
+
 void GUI::Begin()
 {
     mPGE->SetPixelMode(olc::Pixel::ALPHA);

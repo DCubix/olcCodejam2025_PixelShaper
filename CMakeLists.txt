@@ -85,6 +85,7 @@ include_directories(src)
 add_executable(${PROJECT_NAME} 
     src/gui.cpp
     src/stb_image_write.cpp
+    src/history.cpp
     src/shaper.cpp
     src/main.cpp
 )

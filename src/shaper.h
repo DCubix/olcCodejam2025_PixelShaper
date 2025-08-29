@@ -25,7 +25,9 @@ public:
         const olc::vi2d& size,
         float rotation,
         const olc::Pixel& color
-    ) : mPosition(position), mSize(size), mRotation(rotation), mColor(color) {}
+    ) : mPosition(position), mSize(size), mRotation(rotation), mColor(color) {
+        mID = mNextID++;
+    }
 
     virtual float GetSDF(olc::vf2d p) const = 0;
     virtual bool IsPointInside(const olc::vi2d& point) const = 0;
@@ -48,11 +50,17 @@ public:
     void SetSubtractive(bool subtractive) { mSubtractive = subtractive; }
     bool IsSubtractive() const { return mSubtractive; }
 
+    size_t GetID() const { return mID; }
+
     olc::vi2d mPosition{ 0, 0 };
     olc::vi2d mSize{ 1, 1 };
     float mRotation{ 0.0f };
     olc::Pixel mColor{ 255, 255, 255, 255 };
     bool mSubtractive{ false };
+    
+private:
+    size_t mID;
+    static size_t mNextID;
 };
 
 class EllipseElement : public Element {
@@ -121,6 +129,11 @@ public:
     olc::vi2d mLightPosition{ 0, 0 };
 };
 
+enum class LayerEffectType {
+    ShadingEffect,
+    ContourEffect
+};
+
 class Layer : public ISerializable {
 public:
     Layer() = default;
@@ -132,8 +145,10 @@ public:
         mShadingEffect = std::make_unique<ShadingEffect>();
     }
 
-    void AddElement(Element* element);
+    Element* AddElement(Element* element);
     void RemoveElement(Element* element);
+
+    Element* GetElement(size_t id) const;
 
     void Resize(int width, int height);
     void Clear();
@@ -148,6 +163,17 @@ public:
 
     ShadingEffect* GetShadingEffect() { return mShadingEffect.get(); }
     ContourEffect* GetContourEffect() { return mContourEffect.get(); }
+
+    Effect* GetEffect(LayerEffectType type) {
+        switch (type) {
+            case LayerEffectType::ShadingEffect:
+                return GetShadingEffect();
+            case LayerEffectType::ContourEffect:
+                return GetContourEffect();
+            default:
+                return nullptr;
+        }
+    }
 
     float GetMergeSmoothness() const { return mMergeSmoothness; }
     void SetMergeSmoothness(float smoothness) { mMergeSmoothness = smoothness; }
@@ -182,6 +208,7 @@ public:
 
     Layer* MoveLayerUp(size_t id);
     Layer* MoveLayerDown(size_t id);
+    void ReorderLayer(size_t id, size_t newIndex);
 
     void RenderAll();
     void Resize(int width, int height);
@@ -195,6 +222,7 @@ public:
     int GetHeight() const { return mHeight; }
 
     Layer* GetLayer(size_t id) const;
+    size_t GetLayerOrder(size_t id) const;
     std::vector<Layer*> GetLayers() const;
     std::vector<size_t> GetLayerOrder() const { return mLayerOrder; }
 private:

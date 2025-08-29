@@ -7,6 +7,7 @@
 
 #include "gui.h"
 #include "shaper.h"
+#include "history.h"
 
 #include <regex>
 #include <fstream>
@@ -46,10 +47,24 @@ public:
         gui.AddIcon("assets/save.png"); // 11
         gui.AddIcon("assets/enabled.png"); // 12
         gui.AddIcon("assets/image.png"); // 13
+        gui.AddIcon("assets/undo.png"); // 14
+        gui.AddIcon("assets/redo.png"); // 15
+
+        mHistory = std::make_unique<History>();
 
         RecreateDrawing();
 
         return true;
+    }
+
+    ElementRef currentElement()
+    {
+        return { mDrawing.get(), activeLayer->GetID(), selectedElement->GetID() };
+    }
+
+    LayerRef currentLayer()
+    {
+        return { mDrawing.get(), activeLayer->GetID() };
     }
 
     bool OnUserUpdate(float fElapsedTime) override
@@ -102,9 +117,15 @@ public:
         w = GetTextSizeProp("Add Ellipse").x + 25;
         if (gui.CutLeft(w).Button("add_ellipse", "$[2] Add Ellipse", controlColor))
         {
-            activeLayer->AddElement(
-                new EllipseElement(olc::vi2d(mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2), olc::vi2d(40, 20), 0.0f, olc::WHITE)
-            );
+            json params = {
+                {"type", "ellipse"},
+                {"position", {mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2}},
+                {"size", {40, 40}},
+                {"rotation", 0.0f},
+                {"color", {255, 255, 255, 255}}
+            };
+
+            mHistory->Push(new CmdAddElement({ mDrawing.get(), activeLayer->GetID(), 0 }, params));
             mDrawing->RenderAll();
         }
 
@@ -112,13 +133,44 @@ public:
         w = GetTextSizeProp("Add Rectangle").x + 25;
         if (gui.CutLeft(w).Button("add_rectangle", "$[3] Add Rectangle", controlColor))
         {
-            activeLayer->AddElement(
-                new RectangleElement(olc::vi2d(mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2), olc::vi2d(40, 20), 0.0f, olc::WHITE)
-            );
+            json params = {
+                {"type", "rectangle"},
+                {"position", {mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2}},
+                {"size", {40, 40}},
+                {"rotation", 0.0f},
+                {"color", {255, 255, 255, 255}}
+            };
+
+            mHistory->Push(new CmdAddElement({ mDrawing.get(), activeLayer->GetID(), 0 }, params));
             mDrawing->RenderAll();
         }
 
         gui.CutLeft(6).Spacer();
+
+        if (mHistory->CanUndo())
+        {
+            w = 25;
+            if (gui.CutLeft(w).Button("undo", "$[14]", controlColor))
+            {
+                mHistory->Undo();
+                selectedElement = nullptr;
+                mDrawing->RenderAll();
+            }
+        }
+
+        if (mHistory->CanRedo())
+        {
+            w = 25;
+            if (gui.CutLeft(w).Button("redo", "$[15]", controlColor))
+            {
+                mHistory->Redo();
+                selectedElement = nullptr;
+                mDrawing->RenderAll();
+            }
+        }
+
+        if (mHistory->CanUndo() || mHistory->CanRedo())
+            gui.CutLeft(6).Spacer();
 
         w = GetTextSizeProp("Export PNG").x + 25;
         if (gui.CutLeft(w).Button("export_png", "$[13] Export PNG", controlColor))
@@ -136,7 +188,9 @@ public:
         // Layer add
         if (layers.size() < 10) { // limit to 10 layers
             if (gui.CutTop(18).Button("add_layer", "$[8] Add Layer", controlColor)) {
-                activeLayer = mDrawing->AddLayer();
+                mHistory->Push(new CmdAddLayer({ mDrawing.get(), 0 }, json()));
+                mDrawing->RenderAll();
+                activeLayer = mDrawing->GetLayers().back();
             }
         }
 
@@ -144,6 +198,8 @@ public:
         int i = 0;
         for (const auto& layer : layers)
         {
+            if (layer == nullptr) continue;
+
             gui.CutTop(18);
 
             // Delete button
@@ -155,10 +211,13 @@ public:
                     controlColor
                 ))
                 {
-                    mDrawing->RemoveLayer(layer->GetID());
-                    if (activeLayer == layer) {
-                        activeLayer = layers.front();
-                    }
+                    size_t layerId = layer->GetID();
+                    mHistory->Push(new CmdRemoveLayer(currentLayer()));
+
+                    if (activeLayer->GetID() == layerId)
+                        activeLayer = mDrawing->GetLayers().front();
+
+                    mDrawing->RenderAll();
                     break;
                 }
             }
@@ -172,7 +231,8 @@ public:
                     controlColor
                 ))
                 {
-                    mDrawing->MoveLayerUp(layer->GetID());
+                    mHistory->Push(new CmdMoveLayerUp({ mDrawing.get(), layer->GetID() }));
+                    mDrawing->RenderAll();
                 }
             }
 
@@ -184,7 +244,8 @@ public:
                     controlColor
                 ))
                 {
-                    mDrawing->MoveLayerDown(layer->GetID());
+                    mHistory->Push(new CmdMoveLayerDown({ mDrawing.get(), layer->GetID() }));
+                    mDrawing->RenderAll();
                 }
             }
 
@@ -203,12 +264,12 @@ public:
         gui.CutBottom(18);
         if (gui.CutLeft(0.5f).Spinner("drawing_width", drawingWidth, 8, 512, 2, controlColor))
         {
-            mDrawing->Resize(drawingWidth, drawingHeight);
+            mHistory->Push(new CmdChangeDrawingSize(mDrawing.get(), { drawingWidth, drawingHeight }));
             mDrawing->RenderAll();
         }
         if (gui.CutRight(1.0f).Spinner("drawing_height", drawingHeight, 8, 512, 2, controlColor))
         {
-            mDrawing->Resize(drawingWidth, drawingHeight);
+            mHistory->Push(new CmdChangeDrawingSize(mDrawing.get(), { drawingWidth, drawingHeight }));
             mDrawing->RenderAll();
         }
         gui.Spacer();
@@ -219,6 +280,8 @@ public:
         if (gui.HSlider("fx_merge_smoothness", smoothness, 0, 100, controlColor))
         {
             activeLayer->SetMergeSmoothness(smoothness / 5.0f);
+            if (GetMouse(0).bReleased)
+                mHistory->Push(new CmdChangeMergeSmoothness({ mDrawing.get(), activeLayer->GetID() }, smoothness / 5.0f));
             mDrawing->RenderAll();
         }
         gui.CutBottom(18).Text("Merge Smoothness", Alignment::Left, olc::BLACK);
@@ -237,9 +300,23 @@ public:
         gui.CutTop(18).Text("Position", Alignment::Left, olc::BLACK);
         gui.CutTop(18);
         if (gui.CutLeft(0.5f).Spinner("pos_x", selectedElement->mPosition.x, -999, 999, 1, controlColor))
+        {
+            json params = {
+                {"id", selectedElement->GetID()},
+                {"position", {selectedElement->mPosition.x, selectedElement->mPosition.y}}
+            };
+            mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
+        }
         if (gui.CutRight(1.0f).Spinner("pos_y", selectedElement->mPosition.y, -999, 999, 1, controlColor))
+        {
+            json params = {
+                {"id", selectedElement->GetID()},
+                {"position", {selectedElement->mPosition.x, selectedElement->mPosition.y}}
+            };
+            mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
+        }
         gui.Spacer();
 
         gui.CutTop(3).Spacer();
@@ -248,9 +325,23 @@ public:
         gui.CutTop(18).Text("Size", Alignment::Left, olc::BLACK);
         gui.CutTop(18);
         if (gui.CutLeft(0.5f).Spinner("size_x", selectedElement->mSize.x, 1, 1000, 1, controlColor))
+        {
+            json params = {
+                {"id", selectedElement->GetID()},
+                {"size", {selectedElement->mSize.x, selectedElement->mSize.y}}
+            };
+            mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
+        }
         if (gui.CutRight(1.0f).Spinner("size_y", selectedElement->mSize.y, 1, 1000, 1, controlColor))
+        {
+            json params = {
+                {"id", selectedElement->GetID()},
+                {"size", {selectedElement->mSize.x, selectedElement->mSize.y}}
+            };
+            mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
+        }
         gui.Spacer();
 
         gui.CutTop(3).Spacer();
@@ -261,6 +352,11 @@ public:
         if (gui.Spinner("rotation", selectedElementRotation, -180, 180, 1, controlColor))
         {
             selectedElement->mRotation = static_cast<float>(selectedElementRotation) * M_PI / 180.0f;
+            json params = {
+                {"id", selectedElement->GetID()},
+                {"rotation", selectedElement->mRotation}
+            };
+            mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
         }
 
@@ -273,6 +369,22 @@ public:
         {
             mDrawing->RenderAll();
             UpdateHTMLColor();
+        }
+
+        if (gui.WasClicked("element_color"))
+        {
+            json params = {
+                {"id", selectedElement->GetID()},
+                {
+                    "color", {
+                        selectedElement->mColor.r,
+                        selectedElement->mColor.g,
+                        selectedElement->mColor.b,
+                        selectedElement->mColor.a
+                    }
+                }
+            };
+            mHistory->Push(new CmdChangeProperty(currentElement(), params));
         }
 
         gui.CutTop(3).Spacer();
@@ -288,6 +400,16 @@ public:
                 &selectedElement->mColor.r, &selectedElement->mColor.g,
                 &selectedElement->mColor.b, &selectedElement->mColor.a) == 4)
             {
+                json params = {
+                    {"id", selectedElement->GetID()},
+                    {"color", {
+                        selectedElement->mColor.r,
+                        selectedElement->mColor.g,
+                        selectedElement->mColor.b,
+                        selectedElement->mColor.a
+                    }}
+                };
+                mHistory->Push(new CmdChangeProperty(currentElement(), params));
                 mDrawing->RenderAll();
             }
         }
@@ -298,6 +420,11 @@ public:
         gui.CutTop(18);
         if (gui.CheckBox("subtractive", "Is Subtractive", selectedElement->mSubtractive, olc::WHITE, olc::BLACK))
         {
+            json params = {
+                {"id", selectedElement->GetID()},
+                {"subtractive", selectedElement->mSubtractive}
+            };
+            mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
         }
     }
@@ -324,6 +451,7 @@ public:
             gui.CutTop(18);
             if (gui.CheckBox("fx_contour_enabled", "Enabled", activeLayer->GetContourEffect()->mEnabled, olc::WHITE, olc::BLACK))
             {
+                mHistory->Push(new CmdEffectEnable(currentLayer(), LayerEffectType::ContourEffect, activeLayer->GetContourEffect()->mEnabled));
                 mDrawing->RenderAll();
             }
 
@@ -335,6 +463,20 @@ public:
                 {
                     mDrawing->RenderAll();
                 }
+
+                if (gui.WasClicked("fx_contour_color"))
+                {
+                    json params = {
+                        {"color", {
+                            activeLayer->GetContourEffect()->mColor.r,
+                            activeLayer->GetContourEffect()->mColor.g,
+                            activeLayer->GetContourEffect()->mColor.b,
+                            activeLayer->GetContourEffect()->mColor.a
+                        }}
+                    };
+                    mHistory->Push(new CmdChangeEffectProperty(currentLayer(), LayerEffectType::ContourEffect, params));
+                    mDrawing->RenderAll();
+                }
             }
         }
         else if (activeFXTab == 1) // Shading tab
@@ -342,6 +484,7 @@ public:
             gui.CutTop(18);
             if (gui.CheckBox("fx_shading_enabled", "Enabled", activeLayer->GetShadingEffect()->mEnabled, olc::WHITE, olc::BLACK))
             {
+                mHistory->Push(new CmdEffectEnable(currentLayer(), LayerEffectType::ShadingEffect, activeLayer->GetShadingEffect()->mEnabled));
                 mDrawing->RenderAll();
             }
 
@@ -350,9 +493,27 @@ public:
                 gui.CutTop(18).Text("Light Position", Alignment::Left, olc::BLACK);
                 gui.CutTop(18);
                 if (gui.CutLeft(0.5f).Spinner("fx_light_x", activeLayer->GetShadingEffect()->mLightPosition.x, -999, 999, 1, controlColor))
+                {
+                    json params = {
+                        {"light_position", {
+                            activeLayer->GetShadingEffect()->mLightPosition.x,
+                            activeLayer->GetShadingEffect()->mLightPosition.y
+                        }}
+                    };
+                    mHistory->Push(new CmdChangeEffectProperty(currentLayer(), LayerEffectType::ShadingEffect, params));
                     mDrawing->RenderAll();
+                }
                 if (gui.CutRight(1.0f).Spinner("fx_light_y", activeLayer->GetShadingEffect()->mLightPosition.y, -999, 999, 1, controlColor))
+                {
+                    json params = {
+                        {"light_position", {
+                            activeLayer->GetShadingEffect()->mLightPosition.x,
+                            activeLayer->GetShadingEffect()->mLightPosition.y
+                        }}
+                    };
+                    mHistory->Push(new CmdChangeEffectProperty(currentLayer(), LayerEffectType::ShadingEffect, params));
                     mDrawing->RenderAll();
+                }
                 gui.Spacer();
 
                 gui.CutTop(3).Spacer();
@@ -363,6 +524,10 @@ public:
                 if (gui.HSlider("fx_intensity", intensity, 0, 10, controlColor))
                 {
                     activeLayer->GetShadingEffect()->mIntensity = intensity / 10.0f;
+                    json params = {
+                        {"intensity", activeLayer->GetShadingEffect()->mIntensity}
+                    };
+                    mHistory->Push(new CmdChangeEffectProperty(currentLayer(), LayerEffectType::ShadingEffect, params));
                     mDrawing->RenderAll();
                 }
 
@@ -372,6 +537,20 @@ public:
                 gui.CutTop(100);
                 if (gui.ColorPicker("fx_shadow_color", activeLayer->GetShadingEffect()->mColor))
                 {
+                    mDrawing->RenderAll();
+                }
+
+                if (gui.WasClicked("fx_shadow_color"))
+                {
+                    json params = {
+                        {"color", {
+                            activeLayer->GetShadingEffect()->mColor.r,
+                            activeLayer->GetShadingEffect()->mColor.g,
+                            activeLayer->GetShadingEffect()->mColor.b,
+                            activeLayer->GetShadingEffect()->mColor.a
+                        }}
+                    };
+                    mHistory->Push(new CmdChangeEffectProperty(currentLayer(), LayerEffectType::ShadingEffect, params));
                     mDrawing->RenderAll();
                 }
             }
@@ -468,6 +647,39 @@ public:
             if (gizmoHit) gizmoInteraction = true;
         }
 
+        // Handle undo/redo gizmo interaction - only when there are actual changes
+        if (GetMouse(0).bReleased && selectedElement && hasInitialState)
+        {
+            // Check if any properties actually changed
+            bool positionChanged = selectedElement->GetPosition() != initialPosition;
+            bool sizeChanged = selectedElement->GetSize() != initialSize;
+            bool rotationChanged = std::abs(selectedElement->GetRotation() - initialRotation) > 0.001f;
+            
+            if (positionChanged || sizeChanged || rotationChanged)
+            {
+                json params = {
+                    {"id", selectedElement->GetID()},
+                    {"position", {
+                        selectedElement->GetPosition().x,
+                        selectedElement->GetPosition().y
+                    }},
+                    {"size", {
+                        selectedElement->GetSize().x,
+                        selectedElement->GetSize().y
+                    }},
+                    {"rotation", selectedElement->GetRotation()}
+                };
+
+                // Reset to initial state
+                selectedElement->mPosition = initialPosition;
+                selectedElement->mSize = initialSize;
+                selectedElement->mRotation = initialRotation;
+
+                mHistory->Push(new CmdChangeProperty(currentElement(), params));
+            }
+            hasInitialState = false;
+        }
+
         // Handle element selection only if not interacting with gizmos and drawing area is active
         if (GetMouse(0).bPressed && !gizmoInteraction && widget.state != WidgetState::Normal)
         {
@@ -524,6 +736,7 @@ public:
 
     void RecreateDrawing()
     {
+        mHistory->Reset();
         mDrawing.reset(new Shaper(drawingWidth, drawingHeight));
         activeLayer = mDrawing->AddLayer();
         mDrawing->RenderAll();
@@ -633,6 +846,15 @@ public:
         
         if (GetMouse(0).bPressed)
         {
+            // Store initial state when manipulation begins
+            if (!hasInitialState)
+            {
+                initialPosition = shape->GetPosition();
+                initialSize = shape->GetSize();
+                initialRotation = shape->GetRotation();
+                hasInitialState = true;
+            }
+            
             // Check rotation handle first (highest priority)
             if (PointInCircle(mouseScreenPos, rotationHandlePos, HANDLE_SIZE))
             {
@@ -683,6 +905,12 @@ public:
                         gizmoHit = true;
                     }
                 }
+            }
+            
+            // If no gizmo was hit, reset the initial state
+            if (!gizmoHit)
+            {
+                hasInitialState = false;
             }
         }
         else if (GetMouse(0).bReleased)
@@ -788,6 +1016,7 @@ public:
             // Load the drawing from the JSON
             mDrawing = std::make_unique<Shaper>();
             mDrawing->Deserialize(in);
+            mHistory->Reset();
 
             pan = { 0, 0 };
             zoom = 1;
@@ -865,9 +1094,17 @@ public:
 
     int resizeCorner{ 0 };
     olc::vi2d dragOffset{ 0, 0 }; // Offset from mouse to shape center when drag starts
+    
+    // Initial state tracking for undo/redo
+    olc::vi2d initialPosition{ 0, 0 };
+    olc::vi2d initialSize{ 0, 0 };
+    float initialRotation{ 0.0f };
+    bool hasInitialState{ false };
 
     std::unique_ptr<Shaper> mDrawing;
     Layer* activeLayer;
+
+    std::unique_ptr<History> mHistory;
 
     olc::Pixel controlColor = olc::Pixel(212, 208, 200);
 };

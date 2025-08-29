@@ -6,6 +6,7 @@
 #include "stb_image_write.h"
 
 size_t Layer::mNextID = 1;
+size_t Element::mNextID = 1;
 
 float EllipseElement::GetSDF(olc::vf2d p) const
 {
@@ -128,6 +129,7 @@ void EllipseElement::Serialize(json &out) const
 
 void Element::Serialize(json &out) const
 {
+    out["id"] = mID;
     out["position"] = { mPosition.x, mPosition.y };
     out["size"] = { mSize.x, mSize.y };
     out["rotation"] = mRotation;
@@ -137,11 +139,27 @@ void Element::Serialize(json &out) const
 
 void Element::Deserialize(const json &in)
 {
-    mPosition = { in["position"][0], in["position"][1] };
-    mSize = { in["size"][0], in["size"][1] };
-    mRotation = in["rotation"];
-    mColor = { in["color"][0], in["color"][1], in["color"][2], in["color"][3] };
-    mSubtractive = in["subtractive"];
+    if (in.contains("id")) {
+        mID = in["id"];
+        mNextID = std::max(mNextID, mID + 1);
+    } else {
+        mID = mNextID++;
+    }
+    if (in.contains("position")) {
+        mPosition = { in["position"][0], in["position"][1] };
+    }
+    if (in.contains("size")) {
+        mSize = { in["size"][0], in["size"][1] };
+    }
+    if (in.contains("rotation")) {
+        mRotation = in["rotation"];
+    }
+    if (in.contains("color")) {
+        mColor = { in["color"][0], in["color"][1], in["color"][2], in["color"][3] };
+    }
+    if (in.contains("subtractive")) {
+        mSubtractive = in["subtractive"];
+    }
 }
 
 float RectangleElement::GetSDF(olc::vf2d p) const
@@ -180,9 +198,10 @@ void RectangleElement::Serialize(json &out) const
     Element::Serialize(out);
 }
 
-void Layer::AddElement(Element *element)
+Element* Layer::AddElement(Element *element)
 {
     mElements.push_back(std::unique_ptr<Element>(element));
+    return mElements.back().get();
 }
 
 void Layer::RemoveElement(Element *element)
@@ -190,6 +209,16 @@ void Layer::RemoveElement(Element *element)
     auto it = std::remove_if(mElements.begin(), mElements.end(),
         [element](const std::unique_ptr<Element>& e) { return e.get() == element; });
     mElements.erase(it, mElements.end());
+}
+
+Element *Layer::GetElement(size_t id) const
+{
+    for (const auto& elem : mElements)
+    {
+        if (elem->GetID() == id)
+            return elem.get();
+    }
+    return nullptr;
 }
 
 void Layer::Resize(int width, int height)
@@ -408,32 +437,41 @@ void Layer::Serialize(json &out) const
 
 void Layer::Deserialize(const json &in)
 {
-    mID = in["id"];
-    mName = in["name"];
-    mMergeSmoothness = in["merge_smoothness"];
-
-    Layer::mNextID = std::max(Layer::mNextID, mID + 1);
+    if (in.contains("id")) {
+        mID = in["id"];
+        Layer::mNextID = std::max(Layer::mNextID, mID + 1);
+    }
+    if (in.contains("name")) {
+        mName = in["name"];
+    }
+    if (in.contains("merge_smoothness")) {
+        mMergeSmoothness = in["merge_smoothness"];
+    }
 
     // Deserialize elements
     mElements.clear();
-    for (const auto &elementData : in["elements"])
-    {
-        std::string type = elementData["type"];
-        Element* element = nullptr;
-        if (type == "ellipse")
+    if (in.contains("elements")) {
+        for (const auto &elementData : in["elements"])
         {
-            element = new EllipseElement();
-        }
-        else if (type == "rectangle")
-        {
-            element = new RectangleElement();
-        }
-        // Add other element types here as needed
+            if (elementData.contains("type")) {
+                std::string type = elementData["type"];
+                Element* element = nullptr;
+                if (type == "ellipse")
+                {
+                    element = new EllipseElement();
+                }
+                else if (type == "rectangle")
+                {
+                    element = new RectangleElement();
+                }
+                // Add other element types here as needed
 
-        if (element)
-        {
-            element->Deserialize(elementData);
-            AddElement(element);
+                if (element)
+                {
+                    element->Deserialize(elementData);
+                    AddElement(element);
+                }
+            }
         }
     }
 
@@ -508,6 +546,16 @@ Layer* Shaper::MoveLayerDown(size_t id)
     return GetLayer(id);
 }
 
+void Shaper::ReorderLayer(size_t id, size_t newIndex)
+{
+    auto it = std::find(mLayerOrder.begin(), mLayerOrder.end(), id);
+    if (it != mLayerOrder.end() && newIndex < mLayerOrder.size())
+    {
+        mLayerOrder.erase(it);
+        mLayerOrder.insert(mLayerOrder.begin() + newIndex, id);
+    }
+}
+
 void Shaper::RenderAll()
 {
     for (const auto &layer : mLayers)
@@ -542,21 +590,31 @@ void Shaper::Serialize(json &out) const
 
 void Shaper::Deserialize(const json &in)
 {
-    mWidth = in["width"];
-    mHeight = in["height"];
+    if (in.contains("width")) {
+        mWidth = in["width"];
+    }
+    if (in.contains("height")) {
+        mHeight = in["height"];
+    }
     Resize(mWidth, mHeight);
 
     mLayers.clear();
-    for (const auto &layerData : in["layers"])
+    if (in.contains("layers"))
     {
-        Layer* layer = AddLayer();
-        layer->Deserialize(layerData);
+        for (const auto &layerData : in["layers"])
+        {
+            Layer* layer = AddLayer();
+            layer->Deserialize(layerData);
+        }
     }
 
     mLayerOrder.clear();
-    for (const auto &id : in["layer_order"])
+    if (in.contains("layer_order"))
     {
-        mLayerOrder.push_back(id);
+        for (const auto &id : in["layer_order"])
+        {
+            mLayerOrder.push_back(id);
+        }
     }
 }
 
@@ -625,6 +683,12 @@ std::vector<Layer*> Shaper::GetLayers() const
     for (const auto& index : mLayerOrder)
         layers.push_back(GetLayer(index));
     return layers;
+}
+
+size_t Shaper::GetLayerOrder(size_t id) const
+{
+    auto it = std::find(mLayerOrder.begin(), mLayerOrder.end(), id);
+    return (it != mLayerOrder.end()) ? std::distance(mLayerOrder.begin(), it) : size_t(-1);
 }
 
 void ContourEffect::Apply(Layer *target)
@@ -698,7 +762,9 @@ void ContourEffect::Serialize(json &out) const
 void ContourEffect::Deserialize(const json &in)
 {
     Effect::Deserialize(in);
-    mColor = { in["color"][0], in["color"][1], in["color"][2], in["color"][3] };
+    if (in.contains("color")) {
+        mColor = { in["color"][0], in["color"][1], in["color"][2], in["color"][3] };
+    }
 }
 
 void Effect::Serialize(json &out) const
@@ -708,7 +774,9 @@ void Effect::Serialize(json &out) const
 
 void Effect::Deserialize(const json &in)
 {
-    mEnabled = in["enabled"];
+    if (in.contains("enabled")) {
+        mEnabled = in["enabled"];
+    }
 }
 
 void ShadingEffect::Apply(Layer *target)
@@ -776,7 +844,13 @@ void ShadingEffect::Serialize(json &out) const
 void ShadingEffect::Deserialize(const json &in)
 {
     Effect::Deserialize(in);
-    mIntensity = in["intensity"];
-    mColor = { in["color"][0], in["color"][1], in["color"][2], in["color"][3] };
-    mLightPosition = { in["light_position"][0], in["light_position"][1] };
+    if (in.contains("intensity")) {
+        mIntensity = in["intensity"];
+    }
+    if (in.contains("color")) {
+        mColor = { in["color"][0], in["color"][1], in["color"][2], in["color"][3] };
+    }
+    if (in.contains("light_position")) {
+        mLightPosition = { in["light_position"][0], in["light_position"][1] };
+    }
 }

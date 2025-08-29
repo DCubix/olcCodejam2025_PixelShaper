@@ -168,6 +168,7 @@ public:
     );
 
     Widget& GetWidget(const std::string& id);
+    bool WasClicked(const std::string& id);
 
     // Adjust the brightness of a color (0.0 - 1.0)
     olc::Pixel AdjustValue(const olc::Pixel& color, float value);
