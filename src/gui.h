@@ -179,6 +179,10 @@ public:
     void PushLayout(int x, int y, int width, int height);
 
     olc::PixelGameEngine* GetPGE() const { return mPGE; }
+    olc::Sprite* GetIcon(int index) const {
+        if (index < 0 || index >= static_cast<int>(mIcons.size())) return nullptr;
+        return mIcons[index].get();
+    }
 
     void Begin();
     void End();

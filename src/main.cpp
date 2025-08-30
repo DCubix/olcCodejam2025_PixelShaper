@@ -49,6 +49,9 @@ public:
         gui.AddIcon("assets/image.png"); // 13
         gui.AddIcon("assets/undo.png"); // 14
         gui.AddIcon("assets/redo.png"); // 15
+        gui.AddIcon("assets/bulb.png"); // 16
+        gui.AddIcon("assets/clone.png"); // 17
+        gui.AddIcon("assets/delete.png"); // 18
 
         mHistory = std::make_unique<History>();
 
@@ -143,6 +146,34 @@ public:
 
             mHistory->Push(new CmdAddElement({ mDrawing.get(), activeLayer->GetID(), 0 }, params));
             mDrawing->RenderAll();
+        }
+
+        if (selectedElement)
+        {
+            gui.CutLeft(6).Spacer();
+
+            if (gui.CutLeft(22).Button("clone", "$[17]", controlColor))
+            {
+                json params;
+                selectedElement->Serialize(params);
+                params.erase("id"); // New element will get a new ID
+
+                params["position"] = {
+                    selectedElement->GetPosition().x + 10,
+                    selectedElement->GetPosition().y + 10
+                };
+
+                mHistory->Push(new CmdAddElement({ mDrawing.get(), activeLayer->GetID(), 0 }, params));
+                selectedElement = mDrawing->GetLayer(activeLayer->GetID())->GetElements().back();
+
+                mDrawing->RenderAll();
+            }
+            if (gui.CutLeft(22).Button("delete", "$[18]", controlColor))
+            {
+                mHistory->Push(new CmdDeleteElement(currentElement()));
+                selectedElement = nullptr;
+                mDrawing->RenderAll();
+            }
         }
 
         gui.CutLeft(6).Spacer();
@@ -614,6 +645,17 @@ public:
             if (gizmoHit) gizmoInteraction = true;
         }
 
+        if (
+            activeMainTab == 2/* FX tab */ &&
+            activeFXTab == 1/* Shading tab */ &&
+            activeLayer->GetShadingEffect()->mEnabled)
+        {
+            if (EditPoint(activeLayer->GetShadingEffect()->mLightPosition, gui.GetIcon(16))) {
+                mDrawing->RenderAll();
+                gizmoInteraction = true;
+            }
+        }
+
         // Handle undo/redo gizmo interaction - only when there are actual changes
         if (GetMouse(0).bReleased && selectedElement && hasInitialState)
         {
@@ -775,7 +817,7 @@ public:
             }
             
             // Draw center handle (shadow)
-            FillCircle(shapeScreenPos + olc::vi2d{1, 1}, HANDLE_SIZE - 1, olc::BLACK);
+            FillCircle(shapeScreenPos + olc::vi2d{1, 1}, HANDLE_SIZE, olc::BLACK);
             
             // Draw rotation handle (shadow)
             FillCircle(rotationHandlePos + olc::vi2d{1, 1}, HANDLE_SIZE, olc::BLACK);
@@ -788,7 +830,7 @@ public:
             }
             
             // Draw center handle
-            FillCircle(shapeScreenPos, HANDLE_SIZE - 1, gizmoColor);
+            FillCircle(shapeScreenPos, HANDLE_SIZE, gizmoColor);
             
             // Draw rotation handle
             FillCircle(rotationHandlePos, HANDLE_SIZE, gizmoColor);
@@ -831,19 +873,6 @@ public:
                     }
                 }
                 
-                // Check center handle
-                if (!gizmoHit && PointInCircle(mouseScreenPos, shapeScreenPos, HANDLE_SIZE - 1))
-                {
-                    manipulationMode = ManipulationMode::Move;
-                    // Calculate offset from mouse to shape center in drawing coordinates
-                    olc::vi2d mouseDrawingPos = olc::vi2d(
-                        (mouseScreenPos.x - drawingX) / zoom,
-                        (mouseScreenPos.y - drawingY) / zoom
-                    );
-                    dragOffset = shape->GetPosition() - mouseDrawingPos;
-                    gizmoHit = true;
-                }
-                
                 // If no specific gizmo was hit, but we clicked on the shape itself, start moving
                 if (!gizmoHit)
                 {
@@ -855,7 +884,7 @@ public:
                     
                     if (shape->IsPointInside(mouseDrawingPos))
                     {
-                        manipulationMode = ManipulationMode::Move;
+                        manipulationMode = ManipulationMode::MoveGizmo;
                         // Calculate offset from mouse to shape center in drawing coordinates
                         dragOffset = shape->GetPosition() - mouseDrawingPos;
                         gizmoHit = true;
@@ -874,7 +903,7 @@ public:
             manipulationMode = ManipulationMode::NoneMode;
         }
 
-        if (manipulationMode == ManipulationMode::Move)
+        if (manipulationMode == ManipulationMode::MoveGizmo)
         {
             // Calculate new position in drawing coordinates with drag offset
             olc::vi2d mouseDrawingPos = olc::vi2d(
@@ -932,6 +961,71 @@ public:
             mDrawing->RenderAll();
         }
         
+        return gizmoHit;
+    }
+
+    // Edit an arbitrary point my allowing it to move with the mouse
+    bool EditPoint(olc::vi2d& point, olc::Sprite* gizmo = nullptr)
+    {
+        bool gizmoHit = false;
+
+        // Get the drawing area widget to calculate proper offsets
+        auto& widget = gui.GetWidget("drawing_area");
+        Rect drawingArea = widget.rect;
+
+        // mouse coords with pan and zoom
+        int mouseX = GetMouseX() - drawingArea.xMin;
+        int mouseY = GetMouseY() - drawingArea.yMin;
+
+        int drawingAreaW = drawingArea.xMax - drawingArea.xMin;
+        int drawingAreaH = drawingArea.yMax - drawingArea.yMin;
+        int centerX = drawingArea.xMin + (drawingAreaW / 2);
+        int centerY = drawingArea.yMin + (drawingAreaH / 2);
+        
+        // Calculate drawing offset
+        int drawingX = centerX - (drawingWidth * zoom) / 2 + pan.x;
+        int drawingY = centerY - (drawingHeight * zoom) / 2 + pan.y;
+
+        olc::vi2d mouseScreenPos = olc::vi2d(
+            drawingArea.xMin + mouseX,
+            drawingArea.yMin + mouseY
+        );
+
+        olc::vi2d pointScreenPos = olc::vi2d(
+            drawingX + point.x * zoom,
+            drawingY + point.y * zoom
+        );
+
+        if (gizmo)
+        {
+            DrawSprite(pointScreenPos - olc::vi2d{8, 8}, gizmo);
+        }
+
+        // Draw center handle (shadow)
+        FillCircle(pointScreenPos + olc::vi2d{1, 1}, HANDLE_SIZE, olc::BLACK);
+        FillCircle(pointScreenPos, HANDLE_SIZE, gizmoColor);
+
+        if (GetMouse(0).bPressed)
+        {
+            if (PointInCircle(mouseScreenPos, pointScreenPos, HANDLE_SIZE))
+            {
+                manipulationMode = ManipulationMode::MovePoint;
+                gizmoHit = true;
+            }
+        }
+        else if (GetMouse(0).bReleased)
+        {
+            manipulationMode = ManipulationMode::NoneMode;
+        }
+
+        if (manipulationMode == ManipulationMode::MovePoint)
+        {
+            point = olc::vi2d(
+                (mouseScreenPos.x - drawingX) / zoom,
+                (mouseScreenPos.y - drawingY) / zoom
+            );
+        }
+
         return gizmoHit;
     }
 
@@ -1039,7 +1133,8 @@ public:
 
     enum class ManipulationMode {
         NoneMode,
-        Move,
+        MoveGizmo,
+        MovePoint,
         Resize,
         Rotate
     } manipulationMode{ ManipulationMode::NoneMode };
