@@ -15,6 +15,14 @@ public:
     virtual void Deserialize(const json& in) = 0;
 };
 
+struct ElementParams {
+    olc::vi2d position{ 0, 0 };
+    olc::vi2d size{ 1, 1 };
+    float rotation{ 0.0f };
+    olc::Pixel color{ 255, 255, 255, 255 };
+    bool subtractive{ false };
+};
+
 class Element : public ISerializable {
 public:
     Element() = default;
@@ -49,6 +57,18 @@ public:
 
     void SetSubtractive(bool subtractive) { mSubtractive = subtractive; }
     bool IsSubtractive() const { return mSubtractive; }
+
+    ElementParams GetParams() const {
+        return ElementParams{ mPosition, mSize, mRotation, mColor, mSubtractive };
+    }
+
+    void SetParams(const ElementParams& params) {
+        mPosition = params.position;
+        mSize = params.size;
+        mRotation = params.rotation;
+        mColor = params.color;
+        mSubtractive = params.subtractive;
+    }
 
     size_t GetID() const { return mID; }
 

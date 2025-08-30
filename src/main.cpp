@@ -214,8 +214,7 @@ public:
                     size_t layerId = layer->GetID();
                     mHistory->Push(new CmdRemoveLayer(currentLayer()));
 
-                    if (activeLayer->GetID() == layerId)
-                        activeLayer = mDrawing->GetLayers().front();
+                    activeLayer = mDrawing->GetLayers().front();
 
                     mDrawing->RenderAll();
                     break;
@@ -301,19 +300,13 @@ public:
         gui.CutTop(18);
         if (gui.CutLeft(0.5f).Spinner("pos_x", selectedElement->mPosition.x, -999, 999, 1, controlColor))
         {
-            json params = {
-                {"id", selectedElement->GetID()},
-                {"position", {selectedElement->mPosition.x, selectedElement->mPosition.y}}
-            };
+            auto params = selectedElement->GetParams();
             mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
         }
         if (gui.CutRight(1.0f).Spinner("pos_y", selectedElement->mPosition.y, -999, 999, 1, controlColor))
         {
-            json params = {
-                {"id", selectedElement->GetID()},
-                {"position", {selectedElement->mPosition.x, selectedElement->mPosition.y}}
-            };
+            auto params = selectedElement->GetParams();
             mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
         }
@@ -326,19 +319,13 @@ public:
         gui.CutTop(18);
         if (gui.CutLeft(0.5f).Spinner("size_x", selectedElement->mSize.x, 1, 1000, 1, controlColor))
         {
-            json params = {
-                {"id", selectedElement->GetID()},
-                {"size", {selectedElement->mSize.x, selectedElement->mSize.y}}
-            };
+            auto params = selectedElement->GetParams();
             mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
         }
         if (gui.CutRight(1.0f).Spinner("size_y", selectedElement->mSize.y, 1, 1000, 1, controlColor))
         {
-            json params = {
-                {"id", selectedElement->GetID()},
-                {"size", {selectedElement->mSize.x, selectedElement->mSize.y}}
-            };
+            auto params = selectedElement->GetParams();
             mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
         }
@@ -352,10 +339,7 @@ public:
         if (gui.Spinner("rotation", selectedElementRotation, -180, 180, 1, controlColor))
         {
             selectedElement->mRotation = static_cast<float>(selectedElementRotation) * M_PI / 180.0f;
-            json params = {
-                {"id", selectedElement->GetID()},
-                {"rotation", selectedElement->mRotation}
-            };
+            auto params = selectedElement->GetParams();
             mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
         }
@@ -373,17 +357,7 @@ public:
 
         if (gui.WasClicked("element_color"))
         {
-            json params = {
-                {"id", selectedElement->GetID()},
-                {
-                    "color", {
-                        selectedElement->mColor.r,
-                        selectedElement->mColor.g,
-                        selectedElement->mColor.b,
-                        selectedElement->mColor.a
-                    }
-                }
-            };
+            auto params = selectedElement->GetParams();
             mHistory->Push(new CmdChangeProperty(currentElement(), params));
         }
 
@@ -400,15 +374,7 @@ public:
                 &selectedElement->mColor.r, &selectedElement->mColor.g,
                 &selectedElement->mColor.b, &selectedElement->mColor.a) == 4)
             {
-                json params = {
-                    {"id", selectedElement->GetID()},
-                    {"color", {
-                        selectedElement->mColor.r,
-                        selectedElement->mColor.g,
-                        selectedElement->mColor.b,
-                        selectedElement->mColor.a
-                    }}
-                };
+                auto params = selectedElement->GetParams();
                 mHistory->Push(new CmdChangeProperty(currentElement(), params));
                 mDrawing->RenderAll();
             }
@@ -420,10 +386,7 @@ public:
         gui.CutTop(18);
         if (gui.CheckBox("subtractive", "Is Subtractive", selectedElement->mSubtractive, olc::WHITE, olc::BLACK))
         {
-            json params = {
-                {"id", selectedElement->GetID()},
-                {"subtractive", selectedElement->mSubtractive}
-            };
+            auto params = selectedElement->GetParams();
             mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
         }
@@ -449,9 +412,11 @@ public:
         if (activeFXTab == 0) // Contour tab
         {
             gui.CutTop(18);
-            if (gui.CheckBox("fx_contour_enabled", "Enabled", activeLayer->GetContourEffect()->mEnabled, olc::WHITE, olc::BLACK))
+
+            bool wasContourEnabled = activeLayer->GetContourEffect()->mEnabled;
+            if (gui.CheckBox("fx_contour_enabled", "Enabled", wasContourEnabled, olc::WHITE, olc::BLACK))
             {
-                mHistory->Push(new CmdEffectEnable(currentLayer(), LayerEffectType::ContourEffect, activeLayer->GetContourEffect()->mEnabled));
+                mHistory->Push(new CmdEffectEnable(currentLayer(), LayerEffectType::ContourEffect, wasContourEnabled));
                 mDrawing->RenderAll();
             }
 
@@ -482,9 +447,11 @@ public:
         else if (activeFXTab == 1) // Shading tab
         {
             gui.CutTop(18);
-            if (gui.CheckBox("fx_shading_enabled", "Enabled", activeLayer->GetShadingEffect()->mEnabled, olc::WHITE, olc::BLACK))
+
+            bool wasShadingEnabled = activeLayer->GetShadingEffect()->mEnabled;
+            if (gui.CheckBox("fx_shading_enabled", "Enabled", wasShadingEnabled, olc::WHITE, olc::BLACK))
             {
-                mHistory->Push(new CmdEffectEnable(currentLayer(), LayerEffectType::ShadingEffect, activeLayer->GetShadingEffect()->mEnabled));
+                mHistory->Push(new CmdEffectEnable(currentLayer(), LayerEffectType::ShadingEffect, wasShadingEnabled));
                 mDrawing->RenderAll();
             }
 
@@ -657,18 +624,7 @@ public:
             
             if (positionChanged || sizeChanged || rotationChanged)
             {
-                json params = {
-                    {"id", selectedElement->GetID()},
-                    {"position", {
-                        selectedElement->GetPosition().x,
-                        selectedElement->GetPosition().y
-                    }},
-                    {"size", {
-                        selectedElement->GetSize().x,
-                        selectedElement->GetSize().y
-                    }},
-                    {"rotation", selectedElement->GetRotation()}
-                };
+                auto params = selectedElement->GetParams();
 
                 // Reset to initial state
                 selectedElement->mPosition = initialPosition;

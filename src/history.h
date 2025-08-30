@@ -66,7 +66,7 @@ private:
 
 class CmdChangeProperty : public ICommand {
 public:
-    CmdChangeProperty(ElementRef ref, const json& newParams)
+    CmdChangeProperty(ElementRef ref, const ElementParams& newParams)
         : mRef(ref), mNewParams(newParams) {}
 
     void Execute() override;
@@ -74,8 +74,8 @@ public:
 
 private:
     ElementRef mRef;
-    json mOldParams;
-    json mNewParams;
+    ElementParams mOldParams;
+    ElementParams mNewParams;
 };
 
 class CmdChangeDrawingSize : public ICommand {

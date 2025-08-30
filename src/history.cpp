@@ -49,11 +49,8 @@ void CmdChangeProperty::Execute()
     Element* element = layer->GetElement(mRef.elementId);
     if (!element) return;
 
-    // Store current properties for undo
-    element->Serialize(mOldParams);
-
-    // Apply new properties
-    element->Deserialize(mNewParams);
+    mOldParams = element->GetParams();
+    element->SetParams(mNewParams);
 }
 
 void CmdChangeProperty::Undo()
@@ -64,7 +61,7 @@ void CmdChangeProperty::Undo()
     Element* element = layer->GetElement(mRef.elementId);
     if (!element) return;
 
-    element->Deserialize(mOldParams);
+    element->SetParams(mOldParams);
 }
 
 void CmdAddElement::Execute()
