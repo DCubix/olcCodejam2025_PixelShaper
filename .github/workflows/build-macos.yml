@@ -18,7 +18,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Install CMake and libpng for native arm64
+          # Update brew and install dependencies for native arm64
+          brew update
+          # Remove any conflicting cmake installations
+          brew uninstall --ignore-dependencies cmake || true
           brew install cmake libpng
 
       - name: Configure CMake
