@@ -312,12 +312,12 @@ public:
         gui.CutBottom(18).Text("Drawing Size", Alignment::Left, olc::BLACK);
 
         gui.CutBottom(18);
-        int smoothness = static_cast<int>(activeLayer->GetMergeSmoothness() * 5.0f);
+        int smoothness = static_cast<int>(activeLayer->GetMergeSmoothness() * 100.0f);
         if (gui.HSlider("fx_merge_smoothness", smoothness, 0, 100, controlColor))
         {
-            activeLayer->SetMergeSmoothness(smoothness / 5.0f);
+            activeLayer->SetMergeSmoothness(smoothness / 100.0f);
             if (GetMouse(0).bReleased)
-                mHistory->Push(new CmdChangeMergeSmoothness({ mDrawing.get(), activeLayer->GetID() }, smoothness / 5.0f));
+                mHistory->Push(new CmdChangeMergeSmoothness({ mDrawing.get(), activeLayer->GetID() }, smoothness / 100.0f));
             mDrawing->RenderAll();
         }
         gui.CutBottom(18).Text("Merge Smoothness", Alignment::Left, olc::BLACK);

@@ -264,7 +264,7 @@ void Layer::Render()
                             sdfAccum = sdf;
                             firstElement = false;
                         } else {
-                            sdfAccum = fnUnion(sdfAccum, sdf, mMergeSmoothness + 0.001f);
+                            sdfAccum = fnUnion(sdfAccum, sdf, mMergeSmoothness + 0.1f);
                         }
                         break;
                     case JoinOperation::Intersection:
