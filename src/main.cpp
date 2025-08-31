@@ -17,7 +17,8 @@
 
 const olc::Pixel gizmoColor = olc::Pixel(80, 139, 237);
 const olc::Pixel gizmoColorGrey = olc::Pixel(128, 128, 128);
-const int HANDLE_SIZE = 2;
+const int handleSize = 2;
+const int handleClickMargin = 2;
 
 class ExampleApp : public olc::PixelGameEngine
 {
@@ -52,6 +53,8 @@ public:
         gui.AddIcon("assets/bulb.png"); // 16
         gui.AddIcon("assets/clone.png"); // 17
         gui.AddIcon("assets/delete.png"); // 18
+        gui.AddIcon("assets/intersect.png"); // 19
+        gui.AddIcon("assets/triangle.png"); // 20
 
         mHistory = std::make_unique<History>();
 
@@ -117,8 +120,7 @@ public:
         gui.CutLeft(6).Spacer();
 
         // Circle
-        w = GetTextSizeProp("Add Ellipse").x + 25;
-        if (gui.CutLeft(w).Button("add_ellipse", "$[2] Add Ellipse", controlColor))
+        if (gui.CutLeft(22).Button("add_ellipse", "$[2]", controlColor))
         {
             json params = {
                 {"type", "ellipse"},
@@ -133,8 +135,7 @@ public:
         }
 
         // Rectangle
-        w = GetTextSizeProp("Add Rectangle").x + 25;
-        if (gui.CutLeft(w).Button("add_rectangle", "$[3] Add Rectangle", controlColor))
+        if (gui.CutLeft(22).Button("add_rectangle", "$[3]", controlColor))
         {
             json params = {
                 {"type", "rectangle"},
@@ -148,60 +149,65 @@ public:
             mDrawing->RenderAll();
         }
 
-        if (selectedElement)
+        // Triangle
+        if (gui.CutLeft(22).Button("add_triangle", "$[20]", controlColor))
         {
-            gui.CutLeft(6).Spacer();
+            json params = {
+                {"type", "triangle"},
+                {"position", {mDrawing->GetWidth() / 2, mDrawing->GetHeight() / 2}},
+                {"size", {40, 40}},
+                {"rotation", 0.0f},
+                {"color", {255, 255, 255, 255}}
+            };
 
-            if (gui.CutLeft(22).Button("clone", "$[17]", controlColor))
-            {
-                json params;
-                selectedElement->Serialize(params);
-                params.erase("id"); // New element will get a new ID
-
-                params["position"] = {
-                    selectedElement->GetPosition().x + 10,
-                    selectedElement->GetPosition().y + 10
-                };
-
-                mHistory->Push(new CmdAddElement({ mDrawing.get(), activeLayer->GetID(), 0 }, params));
-                selectedElement = mDrawing->GetLayer(activeLayer->GetID())->GetElements().back();
-
-                mDrawing->RenderAll();
-            }
-            if (gui.CutLeft(22).Button("delete", "$[18]", controlColor))
-            {
-                mHistory->Push(new CmdDeleteElement(currentElement()));
-                selectedElement = nullptr;
-                mDrawing->RenderAll();
-            }
+            mHistory->Push(new CmdAddElement({ mDrawing.get(), activeLayer->GetID(), 0 }, params));
+            mDrawing->RenderAll();
         }
 
         gui.CutLeft(6).Spacer();
 
-        if (mHistory->CanUndo())
+        if (gui.CutLeft(22).Button("clone", "$[17]", controlColor, selectedElement != nullptr))
         {
-            w = 25;
-            if (gui.CutLeft(w).Button("undo", "$[14]", controlColor))
-            {
-                mHistory->Undo();
-                selectedElement = nullptr;
-                mDrawing->RenderAll();
-            }
+            json params;
+            selectedElement->Serialize(params);
+            params.erase("id"); // New element will get a new ID
+
+            params["position"] = {
+                selectedElement->GetPosition().x + 10,
+                selectedElement->GetPosition().y + 10
+            };
+
+            mHistory->Push(new CmdAddElement({ mDrawing.get(), activeLayer->GetID(), 0 }, params));
+            selectedElement = mDrawing->GetLayer(activeLayer->GetID())->GetElements().back();
+
+            mDrawing->RenderAll();
+        }
+        if (gui.CutLeft(22).Button("delete", "$[18]", controlColor, selectedElement != nullptr))
+        {
+            mHistory->Push(new CmdDeleteElement(currentElement()));
+            selectedElement = nullptr;
+            mDrawing->RenderAll();
         }
 
-        if (mHistory->CanRedo())
+        gui.CutLeft(6).Spacer();
+
+        w = 25;
+        if (gui.CutLeft(w).Button("undo", "$[14]", controlColor, mHistory->CanUndo()))
         {
-            w = 25;
-            if (gui.CutLeft(w).Button("redo", "$[15]", controlColor))
-            {
-                mHistory->Redo();
-                selectedElement = nullptr;
-                mDrawing->RenderAll();
-            }
+            mHistory->Undo();
+            selectedElement = nullptr;
+            mDrawing->RenderAll();
         }
 
-        if (mHistory->CanUndo() || mHistory->CanRedo())
-            gui.CutLeft(6).Spacer();
+        w = 25;
+        if (gui.CutLeft(w).Button("redo", "$[15]", controlColor, mHistory->CanRedo()))
+        {
+            mHistory->Redo();
+            selectedElement = nullptr;
+            mDrawing->RenderAll();
+        }
+
+        gui.CutLeft(6).Spacer();
 
         w = GetTextSizeProp("Export PNG").x + 25;
         if (gui.CutLeft(w).Button("export_png", "$[13] Export PNG", controlColor))
@@ -414,13 +420,20 @@ public:
         // Subtractive setting
         gui.CutTop(3).Spacer();
 
-        gui.CutTop(18);
-        if (gui.CheckBox("subtractive", "Is Subtractive", selectedElement->mSubtractive, olc::WHITE, olc::BLACK))
+        gui.CutTop(18).Text("Join Operation", Alignment::Left, olc::BLACK);
+
+        gui.CutTop(20);
+
+        const std::vector<std::string> joinTypes = { "$[0]", "$[19]", "$[1]" };
+        int mode = static_cast<int>(selectedElement->mJoinOp);
+        if (gui.TabBar(joinTypes, mode, controlColor, true))
         {
             auto params = selectedElement->GetParams();
+            params.joinOperation = static_cast<JoinOperation>(mode);
             mHistory->Push(new CmdChangeProperty(currentElement(), params));
             mDrawing->RenderAll();
         }
+        gui.Spacer();
     }
 
     void FXTab()
@@ -813,27 +826,27 @@ public:
             // Draw corner handles (shadow)
             for (int i = 0; i < 4; i++)
             {
-                FillCircle(screenCorners[i] + olc::vi2d{1, 1}, HANDLE_SIZE, olc::BLACK);
+                FillCircle(screenCorners[i] + olc::vi2d{1, 1}, handleSize, olc::BLACK);
             }
             
             // Draw center handle (shadow)
-            FillCircle(shapeScreenPos + olc::vi2d{1, 1}, HANDLE_SIZE, olc::BLACK);
+            FillCircle(shapeScreenPos + olc::vi2d{1, 1}, handleSize, olc::BLACK);
             
             // Draw rotation handle (shadow)
-            FillCircle(rotationHandlePos + olc::vi2d{1, 1}, HANDLE_SIZE, olc::BLACK);
+            FillCircle(rotationHandlePos + olc::vi2d{1, 1}, handleSize, olc::BLACK);
             DrawLine(shapeScreenPos + olc::vi2d{1, 1}, rotationHandlePos + olc::vi2d{1, 1}, olc::BLACK);
 
             // Draw corner handles
             for (int i = 0; i < 4; i++)
             {
-                FillCircle(screenCorners[i], HANDLE_SIZE, gizmoColor);
+                FillCircle(screenCorners[i], handleSize, gizmoColor);
             }
             
             // Draw center handle
-            FillCircle(shapeScreenPos, HANDLE_SIZE, gizmoColor);
+            FillCircle(shapeScreenPos, handleSize, gizmoColor);
             
             // Draw rotation handle
-            FillCircle(rotationHandlePos, HANDLE_SIZE, gizmoColor);
+            FillCircle(rotationHandlePos, handleSize, gizmoColor);
             DrawLine(shapeScreenPos, rotationHandlePos, gizmoColor);
         }
 
@@ -854,7 +867,7 @@ public:
             }
             
             // Check rotation handle first (highest priority)
-            if (PointInCircle(mouseScreenPos, rotationHandlePos, HANDLE_SIZE))
+            if (PointInCircle(mouseScreenPos, rotationHandlePos, handleSize + handleClickMargin))
             {
                 manipulationMode = ManipulationMode::Rotate;
                 gizmoHit = true;
@@ -864,7 +877,7 @@ public:
             {
                 for (int i = 0; i < 4; i++)
                 {
-                    if (PointInCircle(mouseScreenPos, screenCorners[i], HANDLE_SIZE))
+                    if (PointInCircle(mouseScreenPos, screenCorners[i], handleSize + handleClickMargin))
                     {
                         manipulationMode = ManipulationMode::Resize;
                         resizeCorner = i;
@@ -1002,12 +1015,12 @@ public:
         }
 
         // Draw center handle (shadow)
-        FillCircle(pointScreenPos + olc::vi2d{1, 1}, HANDLE_SIZE, olc::BLACK);
-        FillCircle(pointScreenPos, HANDLE_SIZE, gizmoColor);
+        FillCircle(pointScreenPos + olc::vi2d{1, 1}, handleSize, olc::BLACK);
+        FillCircle(pointScreenPos, handleSize, gizmoColor);
 
         if (GetMouse(0).bPressed)
         {
-            if (PointInCircle(mouseScreenPos, pointScreenPos, HANDLE_SIZE))
+            if (PointInCircle(mouseScreenPos, pointScreenPos, handleSize + handleClickMargin))
             {
                 manipulationMode = ManipulationMode::MovePoint;
                 gizmoHit = true;
@@ -1024,6 +1037,7 @@ public:
                 (mouseScreenPos.x - drawingX) / zoom,
                 (mouseScreenPos.y - drawingY) / zoom
             );
+            gizmoHit = true;
         }
 
         return gizmoHit;

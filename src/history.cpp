@@ -71,10 +71,17 @@ void CmdAddElement::Execute()
 
     std::string type = mParams["type"];
     Element* element = nullptr;
-    if (type == "ellipse") {
+    if (type == "ellipse")
+    {
         element = new EllipseElement();
-    } else if (type == "rectangle") {
+    }
+    else if (type == "rectangle")
+    {
         element = new RectangleElement();
+    }
+    else if (type == "triangle")
+    {
+        element = new TriangleElement();
     }
 
     if (element) {
@@ -114,10 +121,17 @@ void CmdDeleteElement::Undo()
 
     Element* element = nullptr;
     std::string type = mParams["type"];
-    if (type == "ellipse") {
+    if (type == "ellipse")
+    {
         element = new EllipseElement();
-    } else if (type == "rectangle") {
+    }
+    else if (type == "rectangle")
+    {
         element = new RectangleElement();
+    }
+    else if (type == "triangle")
+    {
+        element = new TriangleElement();
     }
 
     if (element) {

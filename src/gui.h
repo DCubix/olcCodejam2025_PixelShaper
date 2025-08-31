@@ -104,7 +104,8 @@ public:
     bool Button(
         const std::string& id,
         const std::string& text,
-        const olc::Pixel& color = olc::VERY_DARK_GREY
+        const olc::Pixel& color = olc::VERY_DARK_GREY,
+        bool enabled = true
     );
 
     bool HSlider(
@@ -140,10 +141,11 @@ public:
         const olc::Pixel& color = olc::WHITE
     );
 
-    void TabBar(
+    bool TabBar(
         const std::vector<std::string>& tabs,
         int& activeTab,
-        const olc::Pixel& color = olc::WHITE
+        const olc::Pixel& color = olc::WHITE,
+        bool fitWidth = false
     );
 
     bool EditBox(

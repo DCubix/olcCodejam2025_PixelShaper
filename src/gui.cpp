@@ -466,29 +466,41 @@ GUI &GUI::Spacer()
 bool GUI::Button(
     const std::string& id,
     const std::string& text,
-    const olc::Pixel& color
+    const olc::Pixel& color,
+    bool enabled
 )
 {
     auto& widget = GetWidget(id);
 
-    switch (widget.state)
+    if (enabled)
     {
-        case WidgetState::Clicked:
-        case WidgetState::Normal:
-            Panel(PanelStyle::Raised, color, 2);
-            break;
-        case WidgetState::Hovered:
-            Panel(PanelStyle::Raised, AdjustValue(color, 1.2f), 2);
-            break;
-        case WidgetState::Active:
-            Panel(PanelStyle::Sunken, AdjustValue(color, 0.8f), 2);
-            break;
+        switch (widget.state)
+        {
+            case WidgetState::Clicked:
+            case WidgetState::Normal:
+                Panel(PanelStyle::Raised, color, 2);
+                break;
+            case WidgetState::Hovered:
+                Panel(PanelStyle::Raised, AdjustValue(color, 1.2f), 2);
+                break;
+            case WidgetState::Active:
+                Panel(PanelStyle::Sunken, AdjustValue(color, 0.8f), 2);
+                break;
+        }
+    }
+    else
+    {
+        Panel(PanelStyle::Flat, AdjustValue(color, 0.7f), 2);
     }
 
-    const auto textColor = Luma(color) > 0.45f ? olc::BLACK : olc::WHITE;
+    auto textColor = Luma(color) > 0.45f ? olc::BLACK : olc::WHITE;
+    textColor.a = enabled ? 255 : 128;
+
     Text(text, Alignment::Center, textColor);
 
-    return widget.state == WidgetState::Clicked;
+    return enabled ?
+        widget.state == WidgetState::Clicked
+        : false;
 }
 
 bool GUI::HSlider(
@@ -696,17 +708,24 @@ bool GUI::ToggleButton(const std::string &id, const std::string &text, bool &val
     return widget.state == WidgetState::Clicked;
 }
 
-void GUI::TabBar(const std::vector<std::string> &tabs, int &activeTab, const olc::Pixel &color)
+bool GUI::TabBar(const std::vector<std::string> &tabs, int &activeTab, const olc::Pixel &color, bool fitWidth)
 {
+    bool tabClicked = false;
+    int layoutWidth = PeekLayout().xMax - PeekLayout().xMin;
     for (size_t i = 0; i < tabs.size(); ++i)
     {
-        CutLeft(mPGE->GetTextSizeProp(tabs[i]).x + 6);
+        int w = fitWidth
+            ? layoutWidth / tabs.size()
+            : mPGE->GetTextSizeProp(tabs[i]).x + 6;
+        CutLeft(w);
         auto& widget = TabToggleButton("tab_" + std::to_string(i) + "_" + tabs[i], tabs[i], activeTab == i, color);
         if (widget.state == WidgetState::Clicked)
         {
             activeTab = static_cast<int>(i);
+            tabClicked = true;
         }
     }
+    return tabClicked;
 }
 
 bool GUI::EditBox(const std::string &id, std::string &value, const std::function<bool(const std::string&)>& validator, const olc::Pixel &color)

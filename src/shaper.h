@@ -9,10 +9,51 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
+struct vec3 {
+    float x, y, z;
+
+    vec3 operator+(const vec3& other) const {
+        return { x + other.x, y + other.y, z + other.z };
+    }
+
+    vec3 operator-(const vec3& other) const {
+        return { x - other.x, y - other.y, z - other.z };
+    }
+
+    vec3 operator*(float scalar) const {
+        return { x * scalar, y * scalar, z * scalar };
+    }
+
+    float dot(const vec3& other) const {
+        return x * other.x + y * other.y + z * other.z;
+    }
+
+    vec3 cross(const vec3& other) const {
+        return { y * other.z - z * other.y,
+                 z * other.x - x * other.z,
+                 x * other.y - y * other.x };
+    }
+
+    vec3 norm() const {
+        float len = mag();
+        return (len > 0) ? (*this * (1.0f / len)) : vec3{ 0, 0, 0 };
+    }
+
+    float mag() const {
+        return std::sqrt(dot(*this));
+    }
+};
+
 class ISerializable {
 public:
     virtual void Serialize(json& out) const = 0;
     virtual void Deserialize(const json& in) = 0;
+};
+
+enum class JoinOperation : int {
+    Union = 0,
+    Intersection,
+    Subtraction
 };
 
 struct ElementParams {
@@ -20,7 +61,7 @@ struct ElementParams {
     olc::vi2d size{ 1, 1 };
     float rotation{ 0.0f };
     olc::Pixel color{ 255, 255, 255, 255 };
-    bool subtractive{ false };
+    JoinOperation joinOperation{ JoinOperation::Union };
 };
 
 class Element : public ISerializable {
@@ -55,11 +96,13 @@ public:
     void SetColor(const olc::Pixel& color) { mColor = color; }
     olc::Pixel GetColor() const { return mColor; }
 
-    void SetSubtractive(bool subtractive) { mSubtractive = subtractive; }
-    bool IsSubtractive() const { return mSubtractive; }
+    bool IsSubtractive() const { return mJoinOp == JoinOperation::Subtraction; }
+
+    JoinOperation GetJoinOperation() const { return mJoinOp; }
+    void SetJoinOperation(JoinOperation op) { mJoinOp = op; }
 
     ElementParams GetParams() const {
-        return ElementParams{ mPosition, mSize, mRotation, mColor, mSubtractive };
+        return ElementParams{ mPosition, mSize, mRotation, mColor, mJoinOp };
     }
 
     void SetParams(const ElementParams& params) {
@@ -67,7 +110,7 @@ public:
         mSize = params.size;
         mRotation = params.rotation;
         mColor = params.color;
-        mSubtractive = params.subtractive;
+        mJoinOp = params.joinOperation;
     }
 
     size_t GetID() const { return mID; }
@@ -76,7 +119,7 @@ public:
     olc::vi2d mSize{ 1, 1 };
     float mRotation{ 0.0f };
     olc::Pixel mColor{ 255, 255, 255, 255 };
-    bool mSubtractive{ false };
+    JoinOperation mJoinOp{ JoinOperation::Union };
     
 private:
     size_t mID;
@@ -103,6 +146,23 @@ class RectangleElement : public Element {
 public:
     RectangleElement() = default;
     RectangleElement(
+        const olc::vi2d& position,
+        const olc::vi2d& size,
+        float rotation,
+        const olc::Pixel& color
+    ) : Element(position, size, rotation, color) {}
+
+    float GetSDF(olc::vf2d p) const override;
+    bool IsPointInside(const olc::vi2d& point) const override;
+
+    virtual void Serialize(json& out) const override;
+};
+
+// Isosceles triangle
+class TriangleElement : public Element {
+public:
+    TriangleElement() = default;
+    TriangleElement(
         const olc::vi2d& position,
         const olc::vi2d& size,
         float rotation,

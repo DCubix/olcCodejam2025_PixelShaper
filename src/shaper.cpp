@@ -10,92 +10,9 @@ size_t Element::mNextID = 1;
 
 float EllipseElement::GetSDF(olc::vf2d p) const
 {
-    // p is now in pixel coordinates relative to the element's center
-    // Get half-extents
-    olc::vf2d ab{ mSize.x / 2.0f, mSize.y / 2.0f };
-    
-    // Handle degenerate cases
-    if (ab.x <= 0.0f || ab.y <= 0.0f) return 1e30f;
-    
-    if (mSize.x == mSize.y)
-    {
-        // Circle case - simpler calculation
-        float r = ab.x;
-        return p.mag() - r;
-    }
-
-    auto fnSign = [](float v) {
-        return (v > 0) - (v < 0);
-    };
-
-    olc::vf2d ap{ ::abs(p.x), ::abs(p.y) };
-    
-    if (ap.x > ap.y)
-    {
-        std::swap(ap.x, ap.y);
-        std::swap(ab.x, ab.y);
-    }
-
-    float l = ab.y * ab.y - ab.x * ab.x;
-    
-    // Handle case where ellipse is nearly circular
-    if (::abs(l) < 1e-6f)
-    {
-        float r = (ab.x + ab.y) * 0.5f;
-        return ap.mag() - r;
-    }
-    
-    float m = ab.x * ap.x / l, m2 = m * m;
-    float n = ab.y * ap.y / l, n2 = n * n;
-    float c = (m2 + n2 - 1.0f) / 3.0f, c3 = c * c * c;
-    float q = c3 + m2 * n2 * 2.0f;
-    float d = c3 + m2 * n2;
-    float g = m + m * n2;
-    float co;
-
-    if (d < 0.0f)
-    {
-        float h = ::acosf(std::clamp(q / c3, -1.0f, 1.0f)) / 3.0f;
-        float s = ::cosf(h);
-        float t = ::sinf(h) * ::sqrtf(3.0f);
-        float rx = ::sqrtf(std::max(0.0f, -c * (s + t + 2.0f) + m2));
-        float ry = ::sqrtf(std::max(0.0f, -c * (s - t + 2.0f) + m2));
-        
-        // Avoid division by zero
-        float denom = rx * ry;
-        if (::abs(denom) < 1e-6f) {
-            co = 0.0f;
-        } else {
-            co = (ry + fnSign(l) * rx + ::abs(g) / denom - m) / 2.0f;
-        }
-    }
-    else
-    {
-        float h = 2.0f * m * n * ::sqrtf(std::max(0.0f, d));
-        float s = fnSign(q + h) * ::powf(::abs(q + h), 1.0f / 3.0f);
-        float u = fnSign(q - h) * ::powf(::abs(q - h), 1.0f / 3.0f);
-        float rx = -s - u - c * 4.0f + 2.0f * m2;
-        float ry = (s - u) * ::sqrtf(3.0f);
-        float rm = ::sqrtf(std::max(0.0f, rx * rx + ry * ry));
-        
-        // Avoid division by zero
-        if (rm < 1e-6f) {
-            co = 0.0f;
-        } else {
-            float sqrtArg = std::max(0.0f, rm - rx);
-            if (sqrtArg < 1e-6f) {
-                co = 0.0f;
-            } else {
-                co = (ry / ::sqrtf(sqrtArg) + 2.0f * g / rm - m) / 2.0f;
-            }
-        }
-    }
-    
-    // Clamp co to valid range
-    co = std::clamp(co, 0.0f, 1.0f);
-    
-    olc::vf2d r = ab * olc::vf2d(co, ::sqrtf(std::max(0.0f, 1.0f - co * co)));
-    return (r - ap).mag() * fnSign(ap.y - r.y);
+    // p is in normalized coordinates where the ellipse should be a unit circle
+    // Simple circle SDF - distance from origin minus radius of 1
+    return p.mag() - 1.0f;
 }
 
 bool EllipseElement::IsPointInside(const olc::vi2d &point) const
@@ -134,7 +51,7 @@ void Element::Serialize(json &out) const
     out["size"] = { mSize.x, mSize.y };
     out["rotation"] = mRotation;
     out["color"] = { mColor.r, mColor.g, mColor.b, mColor.a };
-    out["subtractive"] = mSubtractive;
+    out["join_op"] = static_cast<int>(mJoinOp);
 }
 
 void Element::Deserialize(const json &in)
@@ -158,16 +75,19 @@ void Element::Deserialize(const json &in)
         mColor = { in["color"][0], in["color"][1], in["color"][2], in["color"][3] };
     }
     if (in.contains("subtractive")) {
-        mSubtractive = in["subtractive"];
+        mJoinOp = in["subtractive"].get<bool>() ? JoinOperation::Subtraction : JoinOperation::Union;
+    }
+    if (in.contains("join_op")) {
+        mJoinOp = static_cast<JoinOperation>(in["join_op"].get<int>());
     }
 }
 
 float RectangleElement::GetSDF(olc::vf2d p) const
 {
-    // p is now in pixel coordinates relative to the element's center
+    // p is in normalized coordinates where the rectangle should be a unit square
+    // Simple box SDF - unit square centered at origin with extents [-1, 1]
     olc::vf2d ap{ ::abs(p.x), ::abs(p.y) };
-    olc::vf2d b{ mSize.x / 2.0f, mSize.y / 2.0f };
-    olc::vf2d d = ap - b;
+    olc::vf2d d = ap - olc::vf2d(1.0f, 1.0f);
     return d.max({ 0.0f, 0.0f }).mag() + std::min(std::max(d.x, d.y), 0.0f);
 }
 
@@ -242,40 +162,12 @@ void Layer::Clear()
     }
 }
 
-struct v3 {
-    float x, y, z;
-
-    v3 operator+(const v3& other) const {
-        return { x + other.x, y + other.y, z + other.z };
-    }
-
-    v3 operator-(const v3& other) const {
-        return { x - other.x, y - other.y, z - other.z };
-    }
-
-    v3 operator*(float scalar) const {
-        return { x * scalar, y * scalar, z * scalar };
-    }
-
-    float dot(const v3& other) const {
-        return x * other.x + y * other.y + z * other.z;
-    }
-
-    v3 cross(const v3& other) const {
-        return { y * other.z - z * other.y,
-                 z * other.x - x * other.z,
-                 x * other.y - y * other.x };
-    }
-
-    v3 norm() const {
-        float len = mag();
-        return (len > 0) ? (*this * (1.0f / len)) : v3{ 0, 0, 0 };
-    }
-
-    float mag() const {
-        return std::sqrt(dot(*this));
-    }
-};
+template <typename T>
+T mod(T x, T m)
+{
+    T r = std::fmod(x, m);
+    return (r < 0) ? r + m : r;
+}
 
 void Layer::Render()
 {
@@ -286,19 +178,53 @@ void Layer::Render()
         return (a < b) ? 1.0f : 0.0f;
     };
 
-    auto fnSmoothUnion = [](float d1, float d2, float k)
+    auto fnUnion = [](float a, float b, float k)
     {
-        float h = std::clamp(0.5f + 0.5f * (d2 - d1) / k, 0.0f, 1.0f);
-        return std::lerp(d2, d1, h) - k * h * (1.0f - h);
+        // Circular smooth union
+        k *= 1.0f / (1.0f - std::sqrt(0.5f));
+        float h = std::max(k - std::abs(a - b), 0.0f) / k;
+        return std::min(a, b) - k * 0.5f * (1.0f + h - std::sqrt(1.0f - h * (h - 2.0f)));
     };
 
-    auto fnSubtract = [](float d1, float d2)
+    auto fnIntersection = [](float d1, float d2)
     {
-        return std::max(d1, -d2);
+        return std::max(d1, d2);
+    };
+
+    auto fnSubtract = [=](float d1, float d2)
+    {
+        // Subtraction is intersection with negated second operand
+        return fnIntersection(d1, -d2);
     };
 
     std::vector<float> sdfMap;
     sdfMap.resize(mSurface->width * mSurface->height);
+
+    auto fnPixelsToNormalized = [&](int x, int y, Element* el) {
+        olc::vf2d worldPos{ float(x), float(y) };
+        olc::vf2d localPos = worldPos - el->GetPosition();
+
+        // Rotation
+        float cosAngle = ::cos(-el->GetRotation());
+        float sinAngle = ::sin(-el->GetRotation());
+        olc::vf2d rotatedPos{
+            localPos.x * cosAngle - localPos.y * sinAngle,
+            localPos.x * sinAngle + localPos.y * cosAngle
+        };
+
+        // Scaling
+        olc::vf2d scale{ el->GetSize().x / 2.0f, el->GetSize().y / 2.0f };
+        if (scale.x > 0.0f && scale.y > 0.0f) {
+            rotatedPos.x /= scale.x;
+            rotatedPos.y /= scale.y;
+        }
+
+        // Modifier test: Repetition
+        // rotatedPos.x = mod(rotatedPos.x + 5.0f, 10.0f) - 5.0f;
+        // rotatedPos.y = mod(rotatedPos.y + 5.0f, 10.0f) - 5.0f;
+
+        return rotatedPos;
+    };
 
     for (int y = 0; y < mSurface->height; y++)
     {
@@ -312,19 +238,9 @@ void Layer::Render()
             {
                 if (el->IsSubtractive()) continue; // Skip subtractive elements for color
                 
-                // Transform pixel coordinates to element's local coordinate system
-                olc::vf2d worldPos{ float(x), float(y) };
-                olc::vf2d localPos = worldPos - olc::vf2d(el->GetPosition().x, el->GetPosition().y);
-                
-                float cosAngle = ::cos(-el->GetRotation());
-                float sinAngle = ::sin(-el->GetRotation());
-                olc::vf2d rotatedPos{
-                    localPos.x * cosAngle - localPos.y * sinAngle,
-                    localPos.x * sinAngle + localPos.y * cosAngle
-                };
-
+                olc::vf2d rotatedPos = fnPixelsToNormalized(x, y, el.get());
                 float sdf = el->GetSDF(rotatedPos);
-                
+
                 if (sdf < closestDistance)
                 {
                     closestDistance = sdf;
@@ -338,32 +254,32 @@ void Layer::Render()
             
             for (const auto& el : mElements)
             {
-                // Transform pixel coordinates to element's local coordinate system
-                olc::vf2d worldPos{ float(x), float(y) };
-                olc::vf2d localPos = worldPos - olc::vf2d(el->GetPosition().x, el->GetPosition().y);
-                
-                float cosAngle = ::cos(-el->GetRotation());
-                float sinAngle = ::sin(-el->GetRotation());
-                olc::vf2d rotatedPos{
-                    localPos.x * cosAngle - localPos.y * sinAngle,
-                    localPos.x * sinAngle + localPos.y * cosAngle
-                };
-
+                olc::vf2d rotatedPos = fnPixelsToNormalized(x, y, el.get());
                 float sdf = el->GetSDF(rotatedPos);
-                
-                if (!el->IsSubtractive())
+
+                switch (el->GetJoinOperation())
                 {
-                    if (firstElement) {
-                        sdfAccum = sdf;
-                        firstElement = false;
-                    } else {
-                        sdfAccum = fnSmoothUnion(sdfAccum, sdf, mMergeSmoothness + 0.2f);
-                    }
+                    case JoinOperation::Union:
+                        if (firstElement) {
+                            sdfAccum = sdf;
+                            firstElement = false;
+                        } else {
+                            sdfAccum = fnUnion(sdfAccum, sdf, mMergeSmoothness + 0.001f);
+                        }
+                        break;
+                    case JoinOperation::Intersection:
+                        if (firstElement) {
+                            sdfAccum = sdf;
+                            firstElement = false;
+                        } else {
+                            sdfAccum = fnIntersection(sdfAccum, sdf);
+                        }
+                        break;
+                    case JoinOperation::Subtraction:
+                        sdfAccum = fnSubtract(sdfAccum, sdf);
+                        break;
                 }
-                else
-                {
-                    sdfAccum = fnSubtract(sdfAccum, sdf);
-                }
+
             }
 
             float inside = 1.0f - fnStep(sdfAccum, 0.0f);
@@ -379,7 +295,7 @@ void Layer::Render()
     auto fnSampleSDF = [&](int x, int y)
     {
         if (x < 0 || x >= mSurface->width || y < 0 || y >= mSurface->height)
-            return 1.0f;
+            return 1e30f;
         return sdfMap[y * mSurface->width + x];
     };
 
@@ -388,11 +304,9 @@ void Layer::Render()
     {
         for (int x = 0; x < mSurface->width; x++)
         {
-            float sdf = fnSampleSDF(x, y);
             float dx = fnSampleSDF(x + 1, y) - fnSampleSDF(x - 1, y);
             float dy = fnSampleSDF(x, y + 1) - fnSampleSDF(x, y - 1);
-            v3 n{ -dx, -dy, 2.0f * e };
-            n = n.norm();
+            vec3 n = vec3{ -dx, -dy, 2.0f * e }.norm();
             mNormals->SetPixel(x, y, olc::PixelF(
                 n.x * 0.5f + 0.5f,
                 n.y * 0.5f + 0.5f,
@@ -463,6 +377,10 @@ void Layer::Deserialize(const json &in)
                 else if (type == "rectangle")
                 {
                     element = new RectangleElement();
+                }
+                else if (type == "triangle")
+                {
+                    element = new TriangleElement();
                 }
                 // Add other element types here as needed
 
@@ -801,11 +719,11 @@ void ShadingEffect::Apply(Layer *target)
             if (originalColor.a == 0) continue;
             
             // Calculate light direction: from pixel to light source
-            v3 L{ float(mLightPosition.x - x), float(mLightPosition.y - y), float(surface->width) / 2.0f };
+            vec3 L{ float(mLightPosition.x - x), float(mLightPosition.y - y), float(surface->width) / 2.0f };
             L = L.norm();
 
             olc::Pixel normalMap = target->GetNormals()->GetPixel(x, y);
-            v3 n{
+            vec3 n{
                 (static_cast<float>(normalMap.r) / 255.0f) * 2.0f - 1.0f,
                 (static_cast<float>(normalMap.g) / 255.0f) * 2.0f - 1.0f,
                 (static_cast<float>(normalMap.b) / 255.0f) * 2.0f - 1.0f
@@ -822,8 +740,9 @@ void ShadingEffect::Apply(Layer *target)
             olc::Pixel shadowedColor = olc::PixelLerp(originalColor, mColor, 0.7f);
             
             // Choose between lit and shadowed based on intensity
-            olc::Pixel resultColor = intensity > 0.5f ? litColor : shadowedColor;
-            
+            olc::Pixel resultColor = intensity < 0.75f ? litColor : shadowedColor;
+            // olc::Pixel resultColor = olc::PixelLerp(litColor, shadowedColor, intensity);
+
             // Apply final intensity blending
             olc::Pixel finalColor = olc::PixelLerp(originalColor, resultColor, mIntensity);
             finalColor.a = originalColor.a; // Preserve alpha
@@ -853,4 +772,70 @@ void ShadingEffect::Deserialize(const json &in)
     if (in.contains("light_position")) {
         mLightPosition = { in["light_position"][0], in["light_position"][1] };
     }
+}
+
+float TriangleElement::GetSDF(olc::vf2d p) const
+{
+    // p is in normalized coordinates where the triangle should be a unit triangle
+    // Simple triangle SDF - equilateral triangle with height 2 and base 2
+    auto fnSign = [](float v) {
+        return (v > 0) - (v < 0);
+    };
+
+    olc::vf2d q{ 1.0f, 1.0f }; // Unit triangle extents
+    p.x = std::abs(p.x);
+    p.y *= 0.5f;
+    p.y += q.y * 0.5f;
+    olc::vf2d a = p - q * std::clamp(p.dot(q) / q.dot(q), 0.0f, 1.0f);
+    olc::vf2d b = p - q * olc::vf2d(std::clamp(p.x / q.x, 0.0f, 1.0f), 1.0f);
+    float k = fnSign(q.y);
+    float d = std::min(a.dot(a), b.dot(b));
+    float s = std::max(k * (p.x * q.y - p.y * q.x), k * (p.y - q.y));
+    return std::sqrt(d) * fnSign(s);
+}
+
+bool TriangleElement::IsPointInside(const olc::vi2d &point) const
+{
+    olc::vi2d center = GetPosition();
+    olc::vi2d size = GetSize();
+    float rotation = GetRotation();
+    
+    // Translate point to triangle's local coordinate system
+    olc::vi2d localPoint = point - center;
+    
+    // Rotate point by negative rotation to align with triangle's axes
+    float cosAngle = ::cos(-rotation);
+    float sinAngle = ::sin(-rotation);
+    
+    float rotatedX = localPoint.x * cosAngle - localPoint.y * sinAngle;
+    float rotatedY = localPoint.x * sinAngle + localPoint.y * cosAngle;
+    
+    // Define triangle vertices in local space (isosceles triangle)
+    // Triangle points upward with base at bottom
+    float halfWidth = size.x / 2.0f;
+    float halfHeight = size.y / 2.0f;
+    
+    // Triangle vertices: top point and two base points
+    olc::vf2d v0{ 0.0f, -halfHeight };        // Top vertex
+    olc::vf2d v1{ -halfWidth, halfHeight };   // Bottom left
+    olc::vf2d v2{ halfWidth, halfHeight };    // Bottom right
+    
+    olc::vf2d p{ rotatedX, rotatedY };
+    
+    // Use barycentric coordinates to test if point is inside triangle
+    float denom = (v1.y - v2.y) * (v0.x - v2.x) + (v2.x - v1.x) * (v0.y - v2.y);
+    
+    if (::abs(denom) < 1e-6f) return false; // Degenerate triangle
+    
+    float a = ((v1.y - v2.y) * (p.x - v2.x) + (v2.x - v1.x) * (p.y - v2.y)) / denom;
+    float b = ((v2.y - v0.y) * (p.x - v2.x) + (v0.x - v2.x) * (p.y - v2.y)) / denom;
+    float c = 1.0f - a - b;
+    
+    return (a >= 0.0f && b >= 0.0f && c >= 0.0f);
+}
+
+void TriangleElement::Serialize(json &out) const
+{
+    out["type"] = "triangle";
+    Element::Serialize(out);
 }
