@@ -46,6 +46,7 @@
                         255
                     ],
                     "id": 3,
+                    "join_op": 0,
                     "position": [
                         148,
                         85
@@ -55,7 +56,6 @@
                         40,
                         20
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 },
                 {
@@ -66,6 +66,7 @@
                         255
                     ],
                     "id": 4,
+                    "join_op": 0,
                     "position": [
                         123,
                         78
@@ -75,7 +76,6 @@
                         50,
                         32
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 },
                 {
@@ -86,6 +86,7 @@
                         255
                     ],
                     "id": 5,
+                    "join_op": 0,
                     "position": [
                         84,
                         86
@@ -95,7 +96,6 @@
                         54,
                         20
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 },
                 {
@@ -106,6 +106,7 @@
                         255
                     ],
                     "id": 6,
+                    "join_op": 0,
                     "position": [
                         98,
                         76
@@ -115,7 +116,6 @@
                         22,
                         14
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 },
                 {
@@ -126,6 +126,7 @@
                         255
                     ],
                     "id": 7,
+                    "join_op": 2,
                     "position": [
                         113,
                         94
@@ -135,12 +136,11 @@
                         122,
                         20
                     ],
-                    "subtractive": true,
                     "type": "rectangle"
                 }
             ],
             "id": 1,
-            "merge_smoothness": 0.0,
+            "merge_smoothness": 0.09000000357627869,
             "name": "Layer 1"
         },
         {
@@ -183,16 +183,16 @@
                         255
                     ],
                     "id": 9,
+                    "join_op": 0,
                     "position": [
                         185,
-                        177
+                        175
                     ],
                     "rotation": 0.0,
                     "size": [
                         174,
                         72
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 },
                 {
@@ -203,6 +203,7 @@
                         255
                     ],
                     "id": 10,
+                    "join_op": 0,
                     "position": [
                         27,
                         181
@@ -212,12 +213,11 @@
                         242,
                         56
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 }
             ],
             "id": 3,
-            "merge_smoothness": 14.199999809265137,
+            "merge_smoothness": 0.18000000715255737,
             "name": "Layer 3"
         },
         {
@@ -260,6 +260,7 @@
                         255
                     ],
                     "id": 8,
+                    "join_op": 0,
                     "position": [
                         99,
                         100
@@ -269,7 +270,6 @@
                         206,
                         206
                     ],
-                    "subtractive": false,
                     "type": "rectangle"
                 }
             ],

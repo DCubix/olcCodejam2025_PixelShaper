@@ -292,6 +292,7 @@ public:
             ))
             {
                 activeLayer = layer;
+                selectedElement = nullptr;
             }
 
             i++;
@@ -482,6 +483,17 @@ public:
                             activeLayer->GetContourEffect()->mColor.b,
                             activeLayer->GetContourEffect()->mColor.a
                         }}
+                    };
+                    mHistory->Push(new CmdChangeEffectProperty(currentLayer(), LayerEffectType::ContourEffect, params));
+                    mDrawing->RenderAll();
+                }
+
+                gui.CutTop(18).Text("Thickness", Alignment::Left, olc::BLACK);
+                gui.CutTop(18);
+                if (gui.Spinner("fx_contour_thickness", activeLayer->GetContourEffect()->mThickness, 1, 10, 1, controlColor))
+                {
+                    json params = {
+                        {"thickness", activeLayer->GetContourEffect()->mThickness}
                     };
                     mHistory->Push(new CmdChangeEffectProperty(currentLayer(), LayerEffectType::ContourEffect, params));
                     mDrawing->RenderAll();

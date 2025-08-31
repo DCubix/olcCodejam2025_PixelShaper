@@ -18,8 +18,8 @@
                     "enabled": true,
                     "intensity": 0.6000000238418579,
                     "light_position": [
-                        50,
-                        50
+                        -91,
+                        98
                     ]
                 },
                 "shading": {
@@ -32,8 +32,8 @@
                     "enabled": true,
                     "intensity": 0.6000000238418579,
                     "light_position": [
-                        50,
-                        50
+                        -91,
+                        98
                     ]
                 }
             },
@@ -46,6 +46,7 @@
                         255
                     ],
                     "id": 17,
+                    "join_op": 0,
                     "position": [
                         100,
                         100
@@ -55,7 +56,6 @@
                         158,
                         164
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 }
             ],
@@ -103,6 +103,7 @@
                         255
                     ],
                     "id": 18,
+                    "join_op": 0,
                     "position": [
                         100,
                         128
@@ -112,7 +113,6 @@
                         118,
                         64
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 },
                 {
@@ -123,6 +123,7 @@
                         255
                     ],
                     "id": 19,
+                    "join_op": 2,
                     "position": [
                         100,
                         100
@@ -132,7 +133,6 @@
                         146,
                         56
                     ],
-                    "subtractive": true,
                     "type": "rectangle"
                 },
                 {
@@ -143,6 +143,7 @@
                         255
                     ],
                     "id": 20,
+                    "join_op": 0,
                     "position": [
                         69,
                         75
@@ -152,7 +153,6 @@
                         34,
                         42
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 },
                 {
@@ -163,6 +163,7 @@
                         255
                     ],
                     "id": 21,
+                    "join_op": 0,
                     "position": [
                         133,
                         75
@@ -172,7 +173,6 @@
                         36,
                         42
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 }
             ],
@@ -220,6 +220,7 @@
                         255
                     ],
                     "id": 22,
+                    "join_op": 0,
                     "position": [
                         68,
                         79
@@ -229,7 +230,6 @@
                         18,
                         24
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 },
                 {
@@ -240,6 +240,7 @@
                         255
                     ],
                     "id": 23,
+                    "join_op": 0,
                     "position": [
                         134,
                         79
@@ -249,7 +250,6 @@
                         18,
                         24
                     ],
-                    "subtractive": false,
                     "type": "ellipse"
                 }
             ],

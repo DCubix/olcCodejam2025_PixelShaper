@@ -163,6 +163,12 @@ void Layer::Clear()
 }
 
 template <typename T>
+T clamp(T value, T min, T max)
+{
+    return (value < min) ? min : (value > max) ? max : value;
+}
+
+template <typename T>
 T mod(T x, T m)
 {
     T r = std::fmod(x, m);
@@ -264,7 +270,7 @@ void Layer::Render()
                             sdfAccum = sdf;
                             firstElement = false;
                         } else {
-                            sdfAccum = fnUnion(sdfAccum, sdf, mMergeSmoothness + 0.1f);
+                            sdfAccum = fnUnion(sdfAccum, sdf, mMergeSmoothness + 1e-3f);
                         }
                         break;
                     case JoinOperation::Intersection:
@@ -299,7 +305,7 @@ void Layer::Render()
         return sdfMap[y * mSurface->width + x];
     };
 
-    const float e = 10.0f / mSurface->width;
+    const float e = 2.0f / mSurface->width;
     for (int y = 0; y < mSurface->height; y++)
     {
         for (int x = 0; x < mSurface->width; x++)
@@ -560,10 +566,10 @@ void Shaper::ExportPNG(const std::string &path)
                 float invAlpha = 1.0f - alpha;
 
                 olc::Pixel result;
-                result.r = uint8_t(std::clamp(int(src.r * alpha + dst.r * invAlpha), 0, 255));
-                result.g = uint8_t(std::clamp(int(src.g * alpha + dst.g * invAlpha), 0, 255));
-                result.b = uint8_t(std::clamp(int(src.b * alpha + dst.b * invAlpha), 0, 255));
-                result.a = uint8_t(std::clamp(int(src.a + dst.a * invAlpha), 0, 255));
+                result.r = uint8_t(clamp(int(src.r * alpha + dst.r * invAlpha), 0, 255));
+                result.g = uint8_t(clamp(int(src.g * alpha + dst.g * invAlpha), 0, 255));
+                result.b = uint8_t(clamp(int(src.b * alpha + dst.b * invAlpha), 0, 255));
+                result.a = uint8_t(clamp(int(src.a + dst.a * invAlpha), 0, 255));
 
                 out->SetPixel(x, y, result);
             }
@@ -627,13 +633,6 @@ void ContourEffect::Apply(Layer *target)
         }
     }
 
-    int neighborsToCheck[] = {
-        -1, 0,
-        1, 0,
-        0, -1,
-        0, 1
-    };
-
     for (int y = 0; y < surface->height; y++)
     {
         for (int x = 0; x < surface->width; x++)
@@ -643,21 +642,28 @@ void ContourEffect::Apply(Layer *target)
             {
                 bool shouldDrawContour = false;
                 
-                // Check surrounding pixels with bounds checking
-                for (int i = 0; i < 4 && !shouldDrawContour; i++) {
-                    int dx = neighborsToCheck[i * 2];
-                    int dy = neighborsToCheck[i * 2 + 1];
-
-                    int nx = x + dx;
-                    int ny = y + dy;
-                    
-                    // Check bounds before accessing pixel
-                    if (nx >= 0 && nx < surface->width && ny >= 0 && ny < surface->height)
+                // Check surrounding pixels within thickness radius
+                for (int dy = -mThickness; dy <= mThickness && !shouldDrawContour; dy++)
+                {
+                    for (int dx = -mThickness; dx <= mThickness && !shouldDrawContour; dx++)
                     {
-                        olc::Pixel neighbor = originalSurface->GetPixel(nx, ny);
-                        if (neighbor.a != 0) // If a neighboring pixel is opaque
+                        if (dx == 0 && dy == 0) continue; // Skip center pixel
+                        
+                        // Check if within circular radius for smoother contours
+                        float distance = std::sqrt(dx * dx + dy * dy);
+                        if (distance > mThickness) continue;
+                        
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        
+                        // Check bounds before accessing pixel
+                        if (nx >= 0 && nx < surface->width && ny >= 0 && ny < surface->height)
                         {
-                            shouldDrawContour = true;
+                            olc::Pixel neighbor = originalSurface->GetPixel(nx, ny);
+                            if (neighbor.a != 0) // If a neighboring pixel is opaque
+                            {
+                                shouldDrawContour = true;
+                            }
                         }
                     }
                 }
@@ -675,6 +681,7 @@ void ContourEffect::Serialize(json &out) const
 {
     Effect::Serialize(out);
     out["color"] = { mColor.r, mColor.g, mColor.b, mColor.a };
+    out["thickness"] = mThickness;
 }
 
 void ContourEffect::Deserialize(const json &in)
@@ -682,6 +689,9 @@ void ContourEffect::Deserialize(const json &in)
     Effect::Deserialize(in);
     if (in.contains("color")) {
         mColor = { in["color"][0], in["color"][1], in["color"][2], in["color"][3] };
+    }
+    if (in.contains("thickness")) {
+        mThickness = in["thickness"];
     }
 }
 
@@ -740,7 +750,7 @@ void ShadingEffect::Apply(Layer *target)
             olc::Pixel shadowedColor = olc::PixelLerp(originalColor, mColor, 0.7f);
             
             // Choose between lit and shadowed based on intensity
-            olc::Pixel resultColor = intensity < 0.75f ? litColor : shadowedColor;
+            olc::Pixel resultColor = intensity < 0.25f ? shadowedColor : litColor;
             // olc::Pixel resultColor = olc::PixelLerp(litColor, shadowedColor, intensity);
 
             // Apply final intensity blending
@@ -778,16 +788,16 @@ float TriangleElement::GetSDF(olc::vf2d p) const
 {
     // p is in normalized coordinates where the triangle should be a unit triangle
     // Simple triangle SDF - equilateral triangle with height 2 and base 2
-    auto fnSign = [](float v) {
-        return (v > 0) - (v < 0);
+    auto fnSign = [](float v) -> float {
+        return (v > 0.0f) ? 1.0f : (v < 0.0f) ? -1.0f : 0.0f;
     };
 
     olc::vf2d q{ 1.0f, 1.0f }; // Unit triangle extents
     p.x = std::abs(p.x);
     p.y *= 0.5f;
     p.y += q.y * 0.5f;
-    olc::vf2d a = p - q * std::clamp(p.dot(q) / q.dot(q), 0.0f, 1.0f);
-    olc::vf2d b = p - q * olc::vf2d(std::clamp(p.x / q.x, 0.0f, 1.0f), 1.0f);
+    olc::vf2d a = p - q * clamp(p.dot(q) / q.dot(q), 0.0f, 1.0f);
+    olc::vf2d b = p - q * olc::vf2d(clamp(p.x / q.x, 0.0f, 1.0f), 1.0f);
     float k = fnSign(q.y);
     float d = std::min(a.dot(a), b.dot(b));
     float s = std::max(k * (p.x * q.y - p.y * q.x), k * (p.y - q.y));

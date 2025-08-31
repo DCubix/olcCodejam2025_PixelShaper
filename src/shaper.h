@@ -196,6 +196,7 @@ public:
     void Deserialize(const json& in) override;
 
     olc::Pixel mColor{ 0, 0, 0, 255 };
+    int mThickness{ 1 };
 };
 
 class ShadingEffect : public Effect {
